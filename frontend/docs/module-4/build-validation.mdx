@@ -1,0 +1,645 @@
+---
+sidebar_position: 27
+---
+
+# Docusaurus Build Validation for MDX Formatting and Navigation
+
+## Overview
+
+This document outlines the procedures for validating that the Vision-Language-Action (VLA) module content builds correctly with Docusaurus, ensuring proper MDX formatting, navigation structure, and overall site integrity. The validation process confirms that all content renders correctly and maintains the expected educational experience.
+
+## Build Validation Process
+
+### Prerequisites
+
+Before running build validation, ensure the following prerequisites are met:
+
+```bash
+# Node.js version 16 or higher
+node --version
+
+# Yarn package manager (recommended) or npm
+yarn --version  # or npm --version
+
+# Docusaurus CLI installed globally
+npm install -g @docusaurus/core@latest
+```
+
+### Installation Validation
+
+```bash
+# Navigate to the frontend directory
+cd frontend/
+
+# Install dependencies
+yarn install  # or npm install
+
+# Verify dependencies are correctly installed
+yarn why @docusaurus/core
+yarn why @docusaurus/module-type-aliases
+```
+
+## MDX Formatting Validation
+
+### Syntax Validation
+
+#### Proper MDX Syntax
+
+```mdx
+---
+sidebar_position: 1
+---
+
+# Module 4: Vision-Language-Action (VLA)
+
+## Overview
+
+This is a properly formatted MDX file for Docusaurus.
+
+### Code Blocks
+
+Here's a Python code block:
+
+```python
+def process_voice_command(command_text: str) -> dict:
+    """
+    Process a voice command through the VLA pipeline
+    """
+    # Implementation here
+    return {'success': True, 'result': 'processed'}
+```
+
+### Interactive Elements
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+<TabItem value="python" label="Python">
+```python
+print("Hello from Python")
+```
+</TabItem>
+<TabItem value="javascript" label="JavaScript">
+```js
+console.log("Hello from JavaScript");
+```
+</TabItem>
+</Tabs>
+```
+
+### Common MDX Issues to Validate
+
+1. **Frontmatter Validation**
+   - Ensure all MDX files have proper frontmatter
+   - Verify `sidebar_position` is set appropriately
+   - Check that titles are properly formatted
+
+2. **Import Statement Validation**
+   - Verify all Docusaurus-specific imports are correct
+   - Check that component imports are properly formatted
+   - Validate that imports are only at the top of the file
+
+3. **Code Block Validation**
+   - Ensure triple backticks are properly closed
+   - Verify language identifiers are correct
+   - Check for nested code blocks that might break parsing
+
+4. **Link Validation**
+   - Confirm relative links point to existing files
+   - Verify anchor links are properly formatted
+   - Check that external links are valid
+
+## Navigation Structure Validation
+
+### Sidebar Configuration
+
+Validate that the sidebar configuration properly includes Module 4:
+
+```javascript
+// sidebars.js
+module.exports = {
+  docs: [
+    {
+      type: 'category',
+      label: 'Module 4: Vision-Language-Action (VLA)',
+      items: [
+        'module-4/index',
+        'module-4/voice-command-processing',
+        'module-4/language-to-action',
+        'module-4/vla-control-loop',
+        'module-4/system-architecture',
+        'module-4/command-plan-action',
+        'module-4/autonomy-state-machine',
+        'module-4/lab-1-voice-text-pipeline',
+        'module-4/lab-2-language-ros-planning',
+        'module-4/lab-3-vla-capstone',
+        'module-4/security',
+        'module-4/performance',
+        'module-4/testing',
+        'module-4/accessibility',
+        'module-4/multi-user',
+        'module-4/quality-checklist',
+        'module-4/build-validation',
+        'module-4/quickstart',
+        'module-4/content-review'
+      ],
+      collapsed: false
+    }
+  ]
+};
+```
+
+### Navigation Testing
+
+```bash
+# Build the site to test navigation
+yarn build
+
+# Serve the built site locally
+yarn serve
+
+# Or start development server
+yarn start
+```
+
+## Automated Validation Scripts
+
+### Build Validation Script
+
+```javascript
+// scripts/validate-build.js
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+class BuildValidator {
+  constructor(docsPath = './docs/module-4/') {
+    this.docsPath = docsPath;
+    this.results = {
+      mdxSyntax: [],
+      navigation: [],
+      links: [],
+      buildSuccess: false
+    };
+  }
+
+  async validateAll() {
+    console.log('Starting Docusaurus build validation...');
+
+    // Validate MDX syntax
+    await this.validateMdxSyntax();
+
+    // Validate navigation structure
+    await this.validateNavigation();
+
+    // Validate internal links
+    await this.validateInternalLinks();
+
+    // Test build process
+    await this.testBuild();
+
+    return this.results;
+  }
+
+  async validateMdxSyntax() {
+    console.log('Validating MDX syntax...');
+
+    const mdxFiles = this.getMdxFiles();
+
+    for (const file of mdxFiles) {
+      const content = fs.readFileSync(file, 'utf8');
+
+      // Check for proper frontmatter
+      const hasFrontmatter = this.hasProperFrontmatter(content);
+
+      // Check for proper code block closure
+      const hasProperCodeBlocks = this.hasProperCodeBlocks(content);
+
+      // Check for import statements at top
+      const hasProperImports = this.hasProperImports(content);
+
+      this.results.mdxSyntax.push({
+        file: file,
+        valid: hasFrontmatter && hasProperCodeBlocks && hasProperImports,
+        issues: [
+          ...(hasFrontmatter ? [] : ['Missing or malformed frontmatter']),
+          ...(hasProperCodeBlocks ? [] : ['Improperly closed code blocks']),
+          ...(hasProperImports ? [] : ['Improper import placement'])
+        ]
+      });
+    }
+
+    console.log(`Validated ${mdxFiles.length} MDX files`);
+  }
+
+  getMdxFiles() {
+    const files = [];
+    const walk = (dir) => {
+      const dirItems = fs.readdirSync(dir);
+      for (const item of dirItems) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          walk(fullPath);
+        } else if (item.endsWith('.mdx')) {
+          files.push(fullPath);
+        }
+      }
+    };
+
+    walk(this.docsPath);
+    return files;
+  }
+
+  hasProperFrontmatter(content) {
+    const lines = content.split('\n');
+    return lines[0] === '---' && lines.slice(1).some(line => line.trim() === '---');
+  }
+
+  hasProperCodeBlocks(content) {
+    // Count opening and closing triple backticks
+    const openTicks = (content.match(/```/g) || []).length;
+    return openTicks % 2 === 0; // Should be even number (open/close pairs)
+  }
+
+  hasProperImports(content) {
+    // Imports should be at the top, before any content
+    const lines = content.split('\n');
+    let contentStarted = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (!trimmed.startsWith('import ') && !trimmed.startsWith('---') && trimmed !== '') {
+        contentStarted = true;
+      }
+
+      if (contentStarted && trimmed.startsWith('import ')) {
+        return false; // Import found after content started
+      }
+    }
+
+    return true;
+  }
+
+  async validateNavigation() {
+    console.log('Validating navigation structure...');
+
+    // Check if sidebar configuration includes module-4 items
+    const sidebarPath = './sidebars.js';
+    if (fs.existsSync(sidebarPath)) {
+      const sidebarContent = fs.readFileSync(sidebarPath, 'utf8');
+
+      this.results.navigation.push({
+        file: sidebarPath,
+        valid: sidebarContent.includes('module-4'),
+        issues: sidebarContent.includes('module-4') ? [] : ['Module 4 not found in sidebar']
+      });
+    } else {
+      this.results.navigation.push({
+        file: sidebarPath,
+        valid: false,
+        issues: ['Sidebar configuration file not found']
+      });
+    }
+  }
+
+  async validateInternalLinks() {
+    console.log('Validating internal links...');
+
+    const mdxFiles = this.getMdxFiles();
+
+    for (const file of mdxFiles) {
+      const content = fs.readFileSync(file, 'utf8');
+      const links = this.extractInternalLinks(content);
+
+      const fileDir = path.dirname(file);
+      const validationResults = [];
+
+      for (const link of links) {
+        const isValid = this.validateLink(link, fileDir);
+        validationResults.push({ link, valid: isValid });
+      }
+
+      this.results.links.push({
+        file: file,
+        valid: validationResults.every(r => r.valid),
+        issues: validationResults.filter(r => !r.valid).map(r => `Invalid link: ${r.link}`)
+      });
+    }
+  }
+
+  extractInternalLinks(content) {
+    // Match markdown links [text](path) and relative paths
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const matches = [...content.matchAll(linkRegex)];
+    return matches.map(match => match[2]).filter(link =>
+      link.startsWith('./') || link.startsWith('../') || link.startsWith('/')
+    );
+  }
+
+  validateLink(link, fromDir) {
+    try {
+      let targetPath;
+
+      if (link.startsWith('/')) {
+        // Absolute path from docs root
+        targetPath = path.join(process.cwd(), 'docs', link.substring(1));
+      } else {
+        // Relative path
+        targetPath = path.resolve(fromDir, link);
+      }
+
+      // Add .mdx extension if not present
+      if (!targetPath.endsWith('.mdx') && !targetPath.endsWith('.md')) {
+        targetPath += '.mdx';
+      }
+
+      return fs.existsSync(targetPath);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async testBuild() {
+    console.log('Testing Docusaurus build...');
+
+    try {
+      // Attempt to build the site
+      const buildOutput = execSync('yarn build', {
+        encoding: 'utf8',
+        cwd: process.cwd(),
+        timeout: 300000 // 5 minutes timeout
+      });
+
+      this.results.buildSuccess = true;
+      console.log('Build completed successfully');
+
+      // Verify build output contains expected content
+      const buildPath = './build';
+      if (fs.existsSync(buildPath)) {
+        const htmlFiles = this.getHtmlFiles(buildPath);
+        console.log(`Build successful with ${htmlFiles.length} HTML files generated`);
+      }
+    } catch (error) {
+      this.results.buildSuccess = false;
+      console.error('Build failed:', error.message);
+      console.error('Build output:', error.stdout);
+      console.error('Build errors:', error.stderr);
+    }
+  }
+
+  getHtmlFiles(dir) {
+    const files = [];
+    const walk = (currentDir) => {
+      const dirItems = fs.readdirSync(currentDir);
+      for (const item of dirItems) {
+        const fullPath = path.join(currentDir, item);
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          walk(fullPath);
+        } else if (item.endsWith('.html')) {
+          files.push(fullPath);
+        }
+      }
+    };
+
+    walk(dir);
+    return files;
+  }
+}
+
+// Run validation if called directly
+if (require.main === module) {
+  (async () => {
+    const validator = new BuildValidator();
+    const results = await validator.validateAll();
+
+    console.log('\nVALIDATION RESULTS:');
+    console.log('==================');
+
+    // MDX Syntax Results
+    console.log(`\nMDX Syntax Validation: ${results.mdxSyntax.filter(r => r.valid).length}/${results.mdxSyntax.length} files valid`);
+    results.mdxSyntax.forEach(result => {
+      if (!result.valid) {
+        console.log(`  ❌ ${result.file}: ${result.issues.join(', ')}`);
+      }
+    });
+
+    // Navigation Results
+    console.log(`\nNavigation Validation: ${results.navigation.filter(r => r.valid).length}/${results.navigation.length} files valid`);
+    results.navigation.forEach(result => {
+      if (!result.valid) {
+        console.log(`  ❌ ${result.file}: ${result.issues.join(', ')}`);
+      }
+    });
+
+    // Links Results
+    console.log(`\nLink Validation: ${results.links.filter(r => r.valid).length}/${results.links.length} files valid`);
+    results.links.forEach(result => {
+      if (!result.valid) {
+        console.log(`  ❌ ${result.file}: ${result.issues.join(', ')}`);
+      }
+    });
+
+    // Build Result
+    console.log(`\nBuild Success: ${results.buildSuccess ? '✅ YES' : '❌ NO'}`);
+
+    // Overall result
+    const allValid = results.mdxSyntax.every(r => r.valid) &&
+                     results.navigation.every(r => r.valid) &&
+                     results.links.every(r => r.valid) &&
+                     results.buildSuccess;
+
+    console.log(`\nOVERALL RESULT: ${allValid ? '✅ ALL VALID' : '❌ ISSUES FOUND'}`);
+
+    process.exit(allValid ? 0 : 1);
+  })();
+}
+
+module.exports = BuildValidator;
+```
+
+### Running the Validation Script
+
+```bash
+# Make the script executable and run it
+chmod +x scripts/validate-build.js
+node scripts/validate-build.js
+
+# Or run with yarn if configured
+yarn validate:build
+```
+
+## Manual Validation Steps
+
+### 1. Visual Inspection
+
+1. **Start the development server**:
+   ```bash
+   yarn start
+   ```
+
+2. **Navigate to Module 4 pages**:
+   - Visit http://localhost:3000/docs/module-4/
+   - Click through each page to verify rendering
+   - Check that all code blocks display properly
+   - Verify that interactive elements work (tabs, etc.)
+
+3. **Test navigation**:
+   - Verify sidebar navigation works
+   - Test "Next" and "Previous" page links
+   - Confirm search functionality includes Module 4 content
+
+### 2. Content Validation
+
+1. **Check all code examples**:
+   - Verify syntax highlighting works
+   - Confirm code blocks are properly formatted
+   - Test copy functionality
+
+2. **Validate diagrams and images**:
+   - Check that all diagrams render correctly
+   - Verify alt text is present for accessibility
+   - Confirm images are properly sized
+
+3. **Review interactive components**:
+   - Test all tabs, accordions, and interactive elements
+   - Verify they work as expected
+   - Check for any JavaScript errors in console
+
+### 3. Cross-Reference Validation
+
+1. **Test all internal links**:
+   - Click through all relative links
+   - Verify they point to correct destinations
+   - Check anchor links work properly
+
+2. **Validate cross-module references**:
+   - Test links to other modules
+   - Ensure they maintain proper context
+   - Verify navigation consistency
+
+## Build Performance Validation
+
+### Performance Testing
+
+```bash
+# Build with performance analysis
+yarn build --bundle-analyzer
+
+# Check build size
+du -sh build/
+
+# Verify build time is reasonable
+time yarn build
+```
+
+### Loading Performance
+
+1. **Page load times**:
+   - Measure load times for Module 4 pages
+   - Verify they meet performance requirements
+   - Check that large code blocks don't slow loading
+
+2. **Resource optimization**:
+   - Verify images are properly compressed
+   - Check that code blocks are efficiently rendered
+   - Confirm no unnecessary resources are loaded
+
+## Accessibility Validation
+
+### Automated Accessibility Testing
+
+```bash
+# Install accessibility testing tools
+npm install -g pa11y
+
+# Test Module 4 pages for accessibility
+pa11y http://localhost:3000/docs/module-4/
+pa11y http://localhost:3000/docs/module-4/voice-command-processing
+pa11y http://localhost:3000/docs/module-4/language-to-action
+# Add other Module 4 pages as needed
+```
+
+### Manual Accessibility Checks
+
+1. **Keyboard navigation**:
+   - Verify all content is accessible via keyboard
+   - Test tab order is logical
+   - Confirm focus indicators are visible
+
+2. **Screen reader compatibility**:
+   - Test with screen reader software
+   - Verify headings are properly structured
+   - Check that code blocks are readable
+
+3. **Color contrast**:
+   - Verify sufficient color contrast
+   - Test in different lighting conditions
+   - Confirm no information is conveyed by color alone
+
+## Deployment Validation
+
+### Production Build Testing
+
+```bash
+# Create production build
+yarn build
+
+# Serve production build locally
+npx serve -s build
+
+# Test at http://localhost:3000
+```
+
+### Static Analysis
+
+```bash
+# Check for broken links in static build
+npx linkinator build/ --recurse --verbosity error
+
+# Validate HTML output
+npx html-validate build/**/*.html
+```
+
+## Validation Checklist
+
+### Pre-Build Checklist
+- [ ] All MDX files have proper frontmatter
+- [ ] Code blocks are properly formatted with language identifiers
+- [ ] Import statements are at the top of files
+- [ ] Internal links point to existing resources
+- [ ] Images and diagrams have appropriate alt text
+- [ ] Sidebar configuration includes Module 4 items
+- [ ] Navigation hierarchy is logical and consistent
+
+### Build Process Checklist
+- [ ] `yarn install` completes successfully
+- [ ] `yarn build` completes without errors
+- [ ] Build process completes within reasonable time (&lt;5 minutes)
+- [ ] No warnings during build process
+- [ ] All assets are properly included in build
+
+### Post-Build Validation Checklist
+- [ ] All Module 4 pages render correctly
+- [ ] Navigation works as expected
+- [ ] Code blocks display with proper syntax highlighting
+- [ ] Interactive elements function properly
+- [ ] All links resolve correctly
+- [ ] Images and diagrams display properly
+- [ ] Page load times are acceptable
+- [ ] Mobile responsiveness is maintained
+- [ ] Accessibility features work properly
+
+### Deployment Checklist
+- [ ] Production build serves correctly
+- [ ] All functionality works in production environment
+- [ ] Performance metrics meet requirements
+- [ ] Security headers are properly set
+- [ ] Caching is configured appropriately
+
+The Docusaurus build validation ensures that Module 4 content integrates seamlessly with the documentation site, maintains proper formatting and navigation, and provides an excellent learning experience for students using the VLA system educational materials.

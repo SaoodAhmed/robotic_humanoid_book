@@ -1,0 +1,443 @@
+---
+title: "Lab 1: Isaac Sim Scene Creation & Synthetic Data Export"
+sidebar_position: 6
+---
+
+# Lab 1: Isaac Sim Scene Creation & Synthetic Data Export
+
+## Overview
+
+This lab provides hands-on experience with Isaac Sim for creating photorealistic scenes and generating synthetic datasets for humanoid robotics applications. Students will learn to create complex environments with articulated humanoid robots, configure sensors, and export synthetic data in multiple formats.
+
+## Learning Objectives
+
+After completing this lab, students will be able to:
+- Launch Isaac Sim and navigate the interface
+- Create photorealistic scenes with humanoid robots
+- Configure sensors for synthetic data generation
+- Generate and export synthetic datasets (RGB, depth, semantic segmentation)
+- Validate synthetic data quality and format compatibility
+
+## Prerequisites
+
+Before starting this lab, ensure you have:
+- Isaac Sim 2023.1+ installed and properly licensed
+- RTX-capable workstation with CUDA support
+- Isaac ROS workspace built and sourced
+- Familiarity with USD (Universal Scene Description) concepts
+- Basic understanding of robotics simulation environments
+
+## Equipment and Software Requirements
+
+- Workstation with RTX GPU (RTX 3080 or better recommended)
+- Ubuntu 22.04 LTS
+- Isaac Sim 2023.1 or later
+- Isaac ROS packages installed
+- CUDA 12.0 or later
+- VRAM: Minimum 12GB (24GB+ recommended)
+
+## Lab Duration
+
+Estimated completion time: 2-3 hours
+
+## Exercise 1: Isaac Sim Environment Setup (T066)
+
+### Step 1: Launch Isaac Sim
+
+1. Open a terminal and source your Isaac ROS workspace:
+```bash
+source ~/isaac_ros_ws/install/setup.bash
+```
+
+2. Launch Isaac Sim with the following command:
+```bash
+isaac sim --version 2023.1.0
+```
+
+3. Wait for Isaac Sim to load. You should see the welcome screen with sample scenes.
+
+### Step 2: Navigate Isaac Sim Interface
+
+1. Explore the main interface components:
+   - Menu bar at the top
+   - Stage panel (left) - shows scene hierarchy
+   - Property panel (right) - shows properties of selected objects
+   - Viewport - main 3D visualization window
+   - Timeline at the bottom
+
+2. Practice basic navigation controls:
+   - Orbit: Middle mouse button + drag
+   - Pan: Shift + left mouse button + drag
+   - Zoom: Scroll wheel or Alt + right mouse button + drag
+   - Focus: Press 'F' while hovering over an object
+
+3. Change viewport layout:
+   - Go to Window → Layouts
+   - Try different layouts (Quad View, Perspective Only, etc.)
+
+### Step 3: Create New Scene
+
+1. Create a new empty scene:
+   - Go to File → New Scene
+   - Or press Ctrl+N
+
+2. Set up basic scene elements:
+   - In the Stage panel, right-click and select Create → Xform → Ground Plane
+   - With the ground plane selected, adjust its properties in the Property panel:
+     - Scale: (10, 1, 10) for a 10m x 10m ground plane
+     - Visibility: Make sure it's set to visible
+
+3. Add basic lighting:
+   - In the Stage panel, right-click and select Create → Lights → Dome Light
+   - In the Property panel, set:
+     - Color: White (1, 1, 1)
+     - Intensity: 500
+     - Texture: Choose a sky HDRI from the assets browser
+
+4. Save your scene:
+   - Go to File → Save As
+   - Name it "humanoid_lab_scene.usdc"
+   - Save to your project directory: `~/isaac_ros_ws/src/my_nav2_config/assets/scenes/`
+
+## Exercise 2: Humanoid Robot Import and Setup (T067)
+
+### Step 1: Import Humanoid Robot Asset
+
+1. Open the Content Browser:
+   - Click on the Content Browser tab (usually on the left)
+   - Or go to Window → Content
+
+2. Find humanoid robot assets:
+   - Look for robot assets in the Isaac Sim asset library
+   - Navigate to: Isaac > Samples > Robotics > ATRV or similar humanoid models
+   - If no humanoid models are available, download one from NVIDIA Omniverse or create a simple stick figure model
+
+3. Import the humanoid robot:
+   - Drag the humanoid robot asset into the Stage
+   - Position it at coordinates (0, 0, 0.8) to place it on the ground plane
+   - Rename it to "HumanoidRobot" in the Stage panel
+
+### Step 2: Configure Robot Properties
+
+1. Select the HumanoidRobot in the Stage panel
+
+2. In the Property panel, configure the following:
+   - Physics properties:
+     - Enable "Collides With Environment"
+     - Set "Density" to 1000 kg/m³
+     - Enable "Enable Gravity"
+
+3. Set up articulation:
+   - Add an Articulation Root prim to the robot's pelvis or torso
+   - In the Property panel, set:
+     - Joint Type: Fixed Joint (for the root)
+     - Drive Type: Position or Velocity (for movable joints)
+
+### Step 3: Verify Robot Setup
+
+1. Test basic movement:
+   - Select the robot in the Stage panel
+   - Use the Move tool (W key) to translate the robot
+   - Use the Rotate tool (E key) to rotate the robot
+   - Use the Scale tool (R key) to scale the robot if needed
+
+2. Check physics simulation:
+   - Press the Play button in the timeline
+   - The robot should respond to gravity and rest on the ground plane
+   - Press Stop to pause the simulation
+
+## Exercise 3: Sensor Configuration for Data Generation (T068)
+
+### Step 1: Add RGB Camera Sensor
+
+1. With the HumanoidRobot selected in the Stage panel:
+   - Right-click and select Create → Xform → Camera
+   - Rename it to "RGB_Camera"
+
+2. Configure camera properties:
+   - Position: Translate to (0.15, 0, 0.2) relative to the robot (on the chest)
+   - Orientation: Set rotation to face forward (Y-axis)
+   - In the Property panel, set:
+     - Focal Length: 24mm
+     - Horizontal Aperture: 36mm
+     - Vertical Aperture: 24mm
+     - Resolution: 640x480 (or higher as needed)
+
+### Step 2: Add Depth Sensor
+
+1. Create a depth sensor:
+   - Right-click on the HumanoidRobot and select Create → USD Prim → Scope
+   - Rename it to "Depth_Sensor"
+
+2. Add depth camera:
+   - Right-click on the Depth_Sensor scope and select Create → Xform → Camera
+   - Rename it to "Depth_Camera"
+
+3. Configure depth camera properties:
+   - Position: Match the RGB camera position (0.15, 0, 0.2)
+   - Orientation: Match the RGB camera orientation
+   - Add the Isaac ROS Depth Image interface:
+     - In the Property panel, click "Add Component"
+     - Search for "Isaac ROS Depth Image" and add it
+     - Set output topic: `/isaac_ros/depth/image_rect_raw`
+
+### Step 3: Add Semantic Segmentation Sensor
+
+1. Create semantic segmentation capability:
+   - Right-click on the RGB_Camera
+   - Select Create → USD Prim → Scope → Semantic Segmentation
+
+2. Configure semantic segmentation:
+   - In the Property panel for the Semantic Segmentation prim:
+     - Set the semantic labels for different objects in the scene
+     - Enable publishing to ROS topic: `/isaac_ros/semantic_segmentation`
+
+### Step 4: Add LiDAR Sensor (Optional)
+
+1. Create LiDAR sensor:
+   - Right-click on the HumanoidRobot
+   - Select Create → Isaac Sensors → Lidar (ROS)
+
+2. Configure LiDAR properties:
+   - Position: At head level (0.15, 0, 0.7)
+   - Range: 10m
+   - Points: 360 horizontal, 16 vertical
+   - Topic: `/isaac_ros/lidar_scan`
+
+## Exercise 4: Scene Complexity and Environment Setup (T069)
+
+### Step 1: Add Environmental Objects
+
+1. Create a simple indoor environment:
+   - Add walls using Xform → Cube primitives
+   - Size each wall to 5m x 3m x 0.2m (length x height x thickness)
+   - Position walls to form a room (approximately 5m x 5m)
+
+2. Add furniture objects:
+   - Create tables, chairs, and obstacles using Cube and Cylinder primitives
+   - Position them to create a realistic indoor environment
+   - Add physics properties to make them solid
+
+3. Assign materials:
+   - In the Content Browser, find materials for different surfaces
+   - Assign different materials to walls, floor, and furniture
+   - Use physically-based materials for realistic rendering
+
+### Step 2: Lighting Configuration
+
+1. Set up key lighting:
+   - Add a Directional Light for main illumination
+   - Position it to simulate sunlight coming from a window
+   - Set intensity to 1000 and color temperature to 6500K
+
+2. Add ambient lighting:
+   - Use the Dome Light from earlier with a sky texture
+   - Adjust intensity to complement the directional light
+
+3. Add accent lighting:
+   - Place Point Lights or Spot Lights to highlight specific areas
+   - Configure shadows and falloff as needed
+
+### Step 3: Scene Validation
+
+1. Test scene physics:
+   - Ensure all objects have appropriate collision properties
+   - Verify the humanoid robot can move without falling through floors
+   - Check that obstacles prevent robot passage
+
+2. Test rendering quality:
+   - Switch between different render modes (Hydra, Kit, RTX)
+   - Verify that sensors capture appropriate data
+   - Adjust lighting for optimal synthetic data quality
+
+## Exercise 5: Synthetic Dataset Generation and Export (T070)
+
+### Step 1: Configure Data Generation Settings
+
+1. Open Isaac Sim's Replicator extension:
+   - Go to Window → Extensions
+   - Search for "Replicator" and enable it
+
+2. Create a replicator script:
+   - Create a new Python script file in your project directory
+   - Name it "generate_synthetic_dataset.py"
+
+3. Add basic replicator setup to the script:
+```python
+import omni.replicator.core as rep
+
+# Set up the replicator
+with rep.new_layer():
+
+    # Define the camera
+    camera = rep.create.camera()
+
+    # Define randomization functions
+    def randomize_lighting():
+        # Randomize lighting conditions
+        lights = rep.get.light()
+        with lights.randomize.uniform_color():
+            color = rep.distribution.uniform([0.5, 0.5, 0.5], [1.0, 1.0, 1.0])
+            yield rep.utils.get_usd_path(lights), color
+
+    def randomize_objects():
+        # Randomize object positions and properties
+        objects = rep.get.prims(prim_types=["Cube", "Sphere"])
+        with objects.randomize.position():
+            pos = rep.distribution.uniform((-2, -2, 0), (2, 2, 2))
+            yield pos
+
+    # Register randomization functions
+    rep.randomizer.register(randomize_lighting)
+    rep.randomizer.register(randomize_objects)
+```
+
+### Step 2: Generate Synthetic Data
+
+1. Set up data collection:
+   - Create a new stage or use your existing scene
+   - Ensure all sensors are properly configured
+   - Set up the camera trajectory for data collection
+
+2. Create camera movement pattern:
+```python
+# Add to your replicator script
+def camera_trajectory():
+    # Define a circular trajectory around the scene
+    for i in range(100):  # 100 frames
+        angle = i * 2 * 3.14159 / 100
+        x = 5 * rep.distribution.constant(math.cos(angle))
+        y = 5 * rep.distribution.constant(math.sin(angle))
+        z = 2  # Fixed height
+
+        # Set camera position
+        camera.set_position((x, y, z))
+
+        # Point camera toward center
+        camera.look_at((0, 0, 0))
+
+        # Capture data
+        rep.orchestrator.capture(i)
+
+# Execute the trajectory
+camera_trajectory()
+```
+
+### Step 3: Export Data in Multiple Formats
+
+1. Configure export settings:
+   - Go to Isaac Sim → Window → Replicator → Writer
+   - Set up writers for different data formats:
+
+```python
+# Add to your replicator script
+# Set up writers for different formats
+writer = rep.WriterRegistry.get("BasicWriter")
+writer.initialize(
+    output_dir="_isaac_sim_output",
+    rgb=True,
+    depth=True,
+    semantic_segmentation=True,
+    instance_segmentation=True,
+    bounding_box_2d_tight=True,
+    bounding_box_2d_loose=True,
+    bounding_box_3d=True,
+    camera_info=True
+)
+writer.attach([camera])
+```
+
+2. Generate and export data:
+```python
+# Run the orchestrator
+rep.orchestrator.run()
+```
+
+### Step 4: Validate Synthetic Dataset
+
+1. Check exported data:
+   - Navigate to the output directory: `_isaac_sim_output`
+   - Verify that all requested data types are present:
+     - RGB images
+     - Depth maps
+     - Semantic segmentation masks
+     - Instance segmentation masks
+     - Bounding boxes (2D and 3D)
+     - Camera intrinsic/extrinsic parameters
+
+2. Validate data quality:
+   - Open a few sample images to verify quality
+   - Check that depth maps have appropriate ranges
+   - Verify that semantic segmentation correctly labels objects
+   - Ensure that camera parameters are correctly recorded
+
+3. Verify format compatibility:
+   - Check that data can be loaded by downstream processing tools
+   - Validate that coordinate systems are consistent
+   - Confirm that timestamps are synchronized across modalities
+
+### Step 5: Create Dataset Metadata
+
+1. Generate metadata file:
+```bash
+# Create a metadata file for the dataset
+cat > dataset_metadata.json << EOF
+{
+  "dataset_name": "Humanoid Navigation Synthetic Dataset",
+  "version": "1.0",
+  "created_date": "$(date)",
+  "description": "Synthetic dataset for humanoid navigation training and validation",
+  "environment": "Indoor office environment with humanoid robot",
+  "robot_model": "Generic humanoid model",
+  "sensors": [
+    {
+      "type": "RGB Camera",
+      "resolution": "640x480",
+      "fov": "60 degrees",
+      "topic": "/rgb/image_raw"
+    },
+    {
+      "type": "Depth Camera",
+      "resolution": "640x480",
+      "range": "0.1m to 10m",
+      "topic": "/depth/image_rect_raw"
+    },
+    {
+      "type": "Semantic Segmentation",
+      "resolution": "640x480",
+      "classes": ["floor", "wall", "furniture", "robot", "obstacle"],
+      "topic": "/semantic_segmentation"
+    }
+  ],
+  "total_frames": 1000,
+  "duration_seconds": 50,
+  "frame_rate": 20,
+  "license": "Research use only"
+}
+EOF
+```
+
+## Lab Conclusion
+
+In this lab, you have successfully:
+- Created a complete Isaac Sim scene with a humanoid robot
+- Configured multiple sensors for synthetic data generation
+- Generated a synthetic dataset with RGB, depth, and semantic information
+- Exported the dataset in formats compatible with Isaac ROS and downstream processing
+- Validated the quality and format of the synthetic data
+
+The synthetic dataset generated in this lab can now be used for training perception models, validating navigation algorithms, and developing humanoid-specific navigation capabilities.
+
+## Troubleshooting Tips
+
+1. **Rendering Issues**: If objects don't appear correctly, check the renderer settings and ensure materials are properly assigned.
+
+2. **Physics Problems**: If the robot falls through the floor, verify that collision properties are enabled for both the robot and the ground plane.
+
+3. **Sensor Data Problems**: If sensors aren't publishing data, check the Isaac ROS bridge connection and verify that the correct topics are configured.
+
+4. **Performance Issues**: If Isaac Sim is running slowly, reduce the scene complexity or adjust rendering settings.
+
+## Next Steps
+
+Proceed to Lab 2: Isaac ROS VSLAM Pipeline to learn how to process the synthetic data generated in this lab using Isaac ROS perception nodes.

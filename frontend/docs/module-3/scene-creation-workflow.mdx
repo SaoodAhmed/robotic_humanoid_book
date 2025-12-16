@@ -1,0 +1,409 @@
+# Basic Scene Creation Workflow with USD Format
+
+## Overview
+
+This document provides a step-by-step guide to creating scenes in Isaac Sim using the Universal Scene Description (USD) format. USD is Pixar's scene description format that enables powerful scene composition, layering, and referencing capabilities. Understanding USD fundamentals is crucial for creating complex and reusable simulation environments.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Understand USD core concepts and terminology
+- Create scenes using the Isaac Sim interface
+- Use USD composition arcs (references, payloads, variants)
+- Organize scenes with proper hierarchy and naming conventions
+- Save and load USD scenes for reuse
+
+## USD Fundamentals
+
+### Core Concepts
+
+**Prims (Primitives)**: The basic building blocks of USD scenes. A prim is a named object that can have properties, relationships, and other prims as children.
+
+**Properties**: Attributes of prims that define their characteristics (position, rotation, scale, material properties, etc.).
+
+**Relationships**: Connections between prims that establish semantic meaning (parent-child, material assignment, etc.).
+
+**Composition Arcs**: Mechanisms for combining multiple USD files:
+- **References**: Include another USD file as a template (read-only)
+- **Payloads**: Lazy-load content from another USD file
+- **Variants**: Different versions of the same prim
+
+### USD File Structure
+
+A USD file typically contains:
+```
+#usda 1.0
+
+def Xform "World"
+{
+    def Xform "Environment"
+    {
+        def Cube "Table"
+        {
+            double3 xformOp:translate = (0, 0, 0.5)
+            uniform double3 size = (1, 1, 1)
+        }
+    }
+}
+```
+
+## Step-by-Step Scene Creation Workflow
+
+### Step 1: Initialize a New Scene
+
+1. Launch Isaac Sim
+2. Create a new scene: `File → New`
+3. Isaac Sim creates a default scene structure:
+   ```
+   /World
+   ├── PhysicsScene
+   ├── GroundPlane
+   ├── DefaultLight
+   └── DefaultCamera
+   ```
+
+### Step 2: Set Up the Root Structure
+
+1. In the Stage panel, ensure the root structure is properly organized:
+   - `/World` as the root prim
+   - Physics scene under `/World/PhysicsScene`
+   - Environment objects under `/World/Environment`
+   - Robots under `/World/Robots`
+   - Sensors under `/World/Sensors`
+
+2. Rename default objects for clarity:
+   - Rename `DefaultLight` to `MainLight`
+   - Rename `DefaultCamera` to `SceneCamera`
+
+### Step 3: Add Environment Objects
+
+1. Create a ground plane:
+   - Right-click `/World/Environment` in the Stage panel
+   - Select `Create → Primitive → Plane`
+   - Name it `GroundPlane`
+   - Set size to appropriate dimensions (e.g., 10x10 meters)
+
+2. Add static environment objects:
+   - Create walls, obstacles, or other static elements
+   - Organize them under `/World/Environment/StaticObjects`
+   - Apply appropriate materials and physics properties
+
+### Step 4: Create and Configure Objects
+
+1. Add objects using the primitive creation tools:
+   ```
+   Right-click in Stage → Create → Primitive → [Cube|Sphere|Cylinder|etc.]
+   ```
+
+2. Configure object properties in the Property panel:
+   - Transform (position, rotation, scale)
+   - Material properties
+   - Physics properties (if applicable)
+
+3. Use USD composition for complex objects:
+   - Create references to pre-built USD assets
+   - Use payloads for large objects loaded on demand
+   - Apply variants for different configurations
+
+### Step 5: Apply Materials and Textures
+
+1. In the Content Browser, navigate to available materials
+2. Drag materials onto objects in the viewport or Stage panel
+3. Adjust material properties in the Property panel:
+   - Albedo (base color)
+   - Roughness
+   - Metallic
+   - Normal maps
+   - Transparency
+
+### Step 6: Configure Physics Properties
+
+1. For objects that should participate in physics simulation:
+   - Right-click the object → `Add → Physics → RigidBody`
+   - Configure mass, friction, and restitution
+   - Add collision shapes if needed
+
+2. For static objects that should collide but not move:
+   - Add `StaticCollider` instead of `RigidBody`
+
+## USD Composition Techniques
+
+### Using References
+
+References allow you to reuse scene elements across multiple scenes:
+
+```python
+# Create a reference to a pre-built asset
+from omni.isaac.core.utils.stage import add_reference_to_stage
+
+# Reference a robot model
+add_reference_to_stage(
+    usd_path="path/to/robot_model.usd",
+    prim_path="/World/Robots/MyRobot"
+)
+```
+
+### Using Payloads
+
+Payloads allow lazy-loading of complex assets:
+
+```python
+# Add a payload for a complex environment
+from pxr import UsdGeom, Sdf
+
+stage = omni.usd.get_context().get_stage()
+payload_prim = stage.DefinePrim("/World/Environment/ComplexBuilding", "Xform")
+payload_prim.GetPayloads().AddPayload(Sdf.Payload("path/to/building.usd"))
+```
+
+### Using Variants
+
+Variants allow multiple configurations of the same object:
+
+```python
+# Create a prim with variants
+from pxr import UsdGeom, Vt
+
+# Define a prim with different material variants
+prim = stage.DefinePrim("/World/Environment/Object", "Xform")
+
+# Create a variant set for materials
+variant_set = prim.GetVariantSet("material")
+variant_set.SetVariantSelection("wood")
+with variant_set.GetVariantEditContext("wood"):
+    # Apply wood material
+    pass
+
+variant_set.SetVariantSelection("metal")
+with variant_set.GetVariantEditContext("metal"):
+    # Apply metal material
+    pass
+```
+
+## Scene Organization Best Practices
+
+### Hierarchy Structure
+
+Follow this recommended hierarchy for Isaac Sim scenes:
+
+```
+/World
+├── PhysicsScene
+├── Environment
+│   ├── GroundPlane
+│   ├── StaticObjects
+│   │   ├── Walls
+│   │   ├── Furniture
+│   │   └── Obstacles
+│   └── Lighting
+│       ├── MainLight
+│       ├── FillLight
+│       └── RimLight
+├── Robots
+│   ├── Robot1
+│   └── Robot2
+├── Sensors
+│   ├── Camera1
+│   ├── LiDAR1
+│   └── IMU1
+└── Simulation
+    ├── Animation
+    └── Triggers
+```
+
+### Naming Conventions
+
+1. **Use PascalCase** for prim names: `GroundPlane`, `MainLight`
+2. **Be descriptive** but concise: `Table01` instead of `t1`
+3. **Group related objects** under common parents: `/World/Environment/Tables`
+4. **Use consistent numbering** for multiple similar objects: `Robot01`, `Robot02`
+
+### Layer Management
+
+1. **Separate static and dynamic elements** into different layers
+2. **Use payloads** for large static environments
+3. **Reference common assets** instead of duplicating them
+4. **Organize by functionality** (environment, robots, sensors)
+
+## Practical Exercise: Creating a Simple Room Scene
+
+### Objective
+Create a simple indoor room scene with furniture using proper USD organization.
+
+### Steps
+
+1. **Create the Room Structure**:
+   ```bash
+   # Start with a new scene in Isaac Sim
+   # Create a 5x5x3 meter room using planes for walls and ceiling
+   ```
+
+2. **Add Walls**:
+   - Create 4 wall planes as children of `/World/Environment/Walls`
+   - Position them to form a 5x5 meter room
+   - Apply wall materials
+
+3. **Add Furniture**:
+   - Create a table (cube) as `/World/Environment/Furniture/Table`
+   - Create a chair (cylinder + cube) as `/World/Environment/Furniture/Chair`
+   - Position furniture appropriately
+
+4. **Configure Physics**:
+   - Add static colliders to walls and floor
+   - Add rigid bodies to furniture if they should be movable
+
+5. **Add Lighting**:
+   - Create a main light as `/World/Lighting/MainLight`
+   - Add fill light if needed
+
+6. **Save the Scene**:
+   - Save as `simple_room.usd`
+   - Verify the hierarchy is properly organized
+
+### Expected USD Structure
+
+```usda
+#usda 1.0
+
+def Xform "World"
+{
+    def PhysicsScene "PhysicsScene"
+    {
+        float physics:gravity = (-9.81)
+    }
+
+    def Xform "Environment"
+    {
+        def Xform "Walls"
+        {
+            def Mesh "WallFront" { ... }
+            def Mesh "WallBack" { ... }
+            def Mesh "WallLeft" { ... }
+            def Mesh "WallRight" { ... }
+        }
+
+        def Xform "Furniture"
+        {
+            def Cube "Table"
+            {
+                double3 xformOp:translate = (0, 0, 0.5)
+            }
+            def Xform "Chair"
+            {
+                double3 xformOp:translate = (1, 0, 0)
+            }
+        }
+
+        def Xform "GroundPlane"
+        {
+            def Mesh "Plane"
+            {
+                double3 xformOp:translate = (0, 0, 0)
+            }
+        }
+    }
+
+    def Xform "Lighting"
+    {
+        def DistantLight "MainLight"
+        {
+            float intensity = 500
+        }
+    }
+}
+```
+
+## USD Tools and Utilities
+
+### Isaac Sim USD Utilities
+
+Isaac Sim provides several Python utilities for USD manipulation:
+
+```python
+import omni.usd
+import omni.kit.commands
+from omni.isaac.core.utils.prims import create_prim, get_prim_at_path
+from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+
+# Create a prim with specific properties
+create_prim(
+    prim_path="/World/MyObject",
+    prim_type="Cube",
+    position=[1, 1, 1],
+    orientation=[0, 0, 0, 1],
+    scale=[1, 1, 1]
+)
+
+# Get an existing prim
+my_prim = get_prim_at_path("/World/MyObject")
+
+# Add reference to an asset
+assets_root_path = get_assets_root_path()
+if assets_root_path:
+    add_reference_to_stage(
+        usd_path=f"{assets_root_path}/Isaac/Robots/Carter/carter_model.usd",
+        prim_path="/World/Robots/Carter"
+    )
+```
+
+### USD Command Line Tools
+
+USD provides command-line tools for scene inspection and manipulation:
+
+```bash
+# Inspect USD file contents
+usdview scene.usd
+
+# Convert between USD formats
+usdcat scene.usda -o scene.usdc
+
+# Extract specific information
+usdls scene.usd
+
+# Validate USD file
+usdval scene.usd
+```
+
+## Troubleshooting Common USD Issues
+
+### Scene Loading Issues
+- **Problem**: Scene doesn't load properly
+- **Solution**: Check USD syntax, verify file paths, ensure all referenced assets exist
+
+### Performance Issues
+- **Problem**: Slow scene loading or editing
+- **Solution**: Use payloads for large assets, simplify complex geometries, organize into multiple layers
+
+### Reference Issues
+- **Problem**: Referenced assets don't appear
+- **Solution**: Verify asset paths, check Nucleus connection, ensure assets are accessible
+
+### Hierarchy Issues
+- **Problem**: Objects appear in wrong location
+- **Solution**: Check transform properties, verify parent-child relationships, ensure proper coordinate systems
+
+## Best Practices Summary
+
+1. **Organize hierarchically** with clear separation of concerns
+2. **Use meaningful names** that reflect object purpose
+3. **Leverage composition** (references, payloads, variants) for reusability
+4. **Apply consistent materials** and physics properties
+5. **Validate scenes** before using in simulation
+6. **Document custom assets** with clear usage instructions
+
+## Next Steps
+
+After mastering basic scene creation with USD:
+1. Explore advanced USD composition techniques
+2. Learn about USD schemas and custom data
+3. Practice creating reusable asset libraries
+4. Move on to lighting and material optimization
+5. Proceed to physics configuration and simulation
+
+## References
+
+- [USD Documentation](https://graphics.pixar.com/usd/release/index.html)
+- [Isaac Sim USD Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/usd_programming_guide.html)
+- [USD Python API](https://graphics.pixar.com/usd/docs/python-usd-api/usd.html)
+- [Isaac Sim Scene Creation](https://docs.omniverse.nvidia.com/isaacsim/latest/basic_guide/scene_creation.html)

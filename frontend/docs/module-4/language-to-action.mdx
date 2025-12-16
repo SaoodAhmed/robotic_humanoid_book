@@ -1,0 +1,397 @@
+---
+sidebar_position: 12
+---
+
+# Language-to-Action Translation
+
+## Overview
+This document describes the implementation of language-to-action translation in the Vision-Language-Action (VLA) system. This component uses a large language model to translate natural language goals into ordered ROS 2 action plans, enabling sophisticated robot behaviors from simple voice commands.
+
+## Architecture
+
+The language-to-action translation pipeline consists of the following components:
+
+1. **Command Preprocessing**: Cleans and standardizes the input command
+2. **Context Enrichment**: Adds environmental and robot capability context
+3. **LLM Processing**: Translates natural language to action sequences using OpenAI
+4. **Action Validation**: Ensures generated actions are valid and executable
+5. **Plan Formatting**: Structures the action plan for ROS 2 execution
+6. **Guardrail Enforcement**: Ensures safety and appropriateness of actions
+
+## Implementation
+
+```python
+import openai
+import json
+import logging
+import re
+from typing import Dict, List, Optional, Tuple
+from .llm_integration import LLMInterface
+from .state_machine import VLAState
+
+class LanguageToActionTranslator:
+    def __init__(self, config, llm_interface: LLMInterface):
+        self.config = config
+        self.llm_interface = llm_interface
+
+        # Supported action types for the robot
+        self.supported_actions = config.get('supported_actions', [
+            'navigate_to_pose',
+            'detect_object',
+            'grasp_object',
+            'release_object',
+            'rotate',
+            'speak',
+            'wait',
+            'perceive_environment'
+        ])
+
+        # Environmental context
+        self.environment_context = config.get('environment_context', {})
+        self.robot_capabilities = config.get('robot_capabilities', {})
+
+        logging.info("Language-to-Action Translator initialized")
+
+    def translate_command_to_action_plan(self, command_text: str,
+                                       environment_context: Optional[Dict] = None,
+                                       robot_capabilities: Optional[Dict] = None) -> Optional[List[Dict]]:
+        """
+        Translate a natural language command into an ordered ROS 2 action plan
+        """
+        start_time = time.time()
+
+        # Use provided context or fall back to default
+        env_context = environment_context or self.environment_context
+        robot_caps = robot_capabilities or self.robot_capabilities
+
+        try:
+            # Generate the action plan using LLM
+            action_plan = self.llm_interface.generate_action_plan(
+                command_text,
+                robot_caps,
+                env_context
+            )
+
+            if not action_plan:
+                logging.error("Failed to generate action plan from LLM")
+                return None
+
+            # Validate the generated action plan
+            is_valid, validation_msg = self.validate_action_plan(action_plan, robot_caps)
+            if not is_valid:
+                logging.error(f"Invalid action plan: {validation_msg}")
+                return None
+
+            # Add timing information
+            processing_time = time.time() - start_time
+            logging.info(f"Action plan generated in {processing_time*1000:.1f}ms")
+
+            return action_plan
+
+        except Exception as e:
+            logging.error(f"Error in language-to-action translation: {e}")
+            return None
+
+    def validate_action_plan(self, action_plan: List[Dict], robot_capabilities: Dict) -> Tuple[bool, str]:
+        """
+        Validate that the action plan is executable by the robot
+        """
+        if not action_plan or not isinstance(action_plan, list):
+            return False, "Action plan must be a list of actions"
+
+        for i, action in enumerate(action_plan):
+            if not isinstance(action, dict):
+                return False, f"Action {i} must be an object"
+
+            if 'type' not in action:
+                return False, f"Action {i} must have a 'type' property"
+
+            if 'parameters' not in action:
+                return False, f"Action {i} must have a 'parameters' property"
+
+            action_type = action['type']
+
+            # Check if action type is supported by robot
+            if action_type not in self.supported_actions:
+                return False, f"Action type '{action_type}' not supported by robot"
+
+            # Validate specific action parameters based on type
+            validation_result = self._validate_action_parameters(action, robot_capabilities)
+            if not validation_result[0]:
+                return False, f"Action {i} ({action_type}): {validation_result[1]}"
+
+        return True, "Action plan is valid"
+
+    def _validate_action_parameters(self, action: Dict, robot_capabilities: Dict) -> Tuple[bool, str]:
+        """
+        Validate specific parameters for an action based on its type
+        """
+        action_type = action['type']
+        parameters = action.get('parameters', {})
+
+        if action_type == 'navigate_to_pose':
+            required_params = ['x', 'y', 'z', 'qx', 'qy', 'qz', 'qw']
+            for param in required_params:
+                if param not in parameters:
+                    return False, f"Missing required parameter '{param}' for navigate_to_pose"
+                if not isinstance(parameters[param], (int, float)):
+                    return False, f"Parameter '{param}' must be a number"
+
+        elif action_type == 'detect_object':
+            if 'object_type' not in parameters:
+                return False, "Missing required parameter 'object_type' for detect_object"
+
+        elif action_type == 'grasp_object':
+            required_params = ['object_name', 'pose']
+            for param in required_params:
+                if param not in parameters:
+                    return False, f"Missing required parameter '{param}' for grasp_object"
+
+        elif action_type == 'release_object':
+            if 'object_name' not in parameters:
+                return False, "Missing required parameter 'object_name' for release_object"
+
+        elif action_type == 'speak':
+            if 'text' not in parameters:
+                return False, "Missing required parameter 'text' for speak"
+
+        # Additional validation rules can be added here
+
+        return True, "Parameters are valid"
+
+    def generate_contextual_prompt(self, command_text: str, environment_context: Dict, robot_capabilities: Dict) -> str:
+        """
+        Generate a contextual prompt for the LLM with environmental and capability information
+        """
+        prompt = f"Convert the following natural language command into a sequence of ROS 2 actions:\n"
+        prompt += f"Command: \"{command_text}\"\n\n"
+
+        # Add environmental context
+        if environment_context:
+            prompt += f"Environment context: {json.dumps(environment_context, indent=2)}\n\n"
+
+        # Add robot capabilities
+        if robot_capabilities:
+            prompt += f"Robot capabilities: {json.dumps(robot_capabilities, indent=2)}\n\n"
+
+        # Define the expected output format
+        prompt += "Respond with a JSON array of actions. Each action should be an object with 'type' and 'parameters'.\n"
+        prompt += "Example actions: navigate_to_pose, detect_object, grasp_object, release_object, etc.\n"
+        prompt += "Ensure the action sequence is feasible, accounts for potential obstacles, and follows safety protocols.\n"
+
+        # Add safety constraints
+        prompt += "IMPORTANT: Do not generate actions that could harm humans, damage property, or cause unsafe situations.\n"
+
+        return prompt
+
+    def handle_ambiguous_command(self, command_text: str) -> Optional[str]:
+        """
+        Handle commands that are ambiguous by requesting clarification
+        """
+        # Check if command is ambiguous using pattern matching or LLM query
+        ambiguity_indicators = [
+            r'go there', r'pick that up', r'move it', r'take something',
+            r'go somewhere', r'do something', r'that thing', r'over there'
+        ]
+
+        import re
+        for indicator in ambiguity_indicators:
+            if re.search(indicator, command_text.lower()):
+                # Generate a clarification request
+                clarification_prompt = f"The command '{command_text}' is ambiguous. Please provide more specific information about the target location, object, or action."
+                return clarification_prompt
+
+        # If not ambiguous based on simple checks, try LLM-based assessment
+        try:
+            ambiguity_check_prompt = f"""
+            Analyze the following command for ambiguity:
+            Command: "{command_text}"
+
+            Respond with 'AMBIGUOUS' if the command lacks specific information needed for execution,
+            or 'CLEAR' if the command has sufficient detail for a robot to execute.
+            """
+
+            response = openai.ChatCompletion.create(
+                model=self.config.get('openai_model', 'gpt-4-turbo'),
+                messages=[{"role": "user", "content": ambiguity_check_prompt}],
+                max_tokens=20
+            )
+
+            result = response.choices[0].message['content'].strip().upper()
+            if result == 'AMBIGUOUS':
+                clarification_prompt = f"The command '{command_text}' is ambiguous. Please specify the exact location, object, or action you want the robot to perform."
+                return clarification_prompt
+
+        except Exception as e:
+            logging.warning(f"Error in ambiguity assessment: {e}")
+
+        return None
+
+    def apply_guardrails(self, action_plan: List[Dict]) -> List[Dict]:
+        """
+        Apply safety and appropriateness guardrails to the action plan
+        """
+        filtered_plan = []
+
+        for action in action_plan:
+            action_type = action.get('type', '')
+            parameters = action.get('parameters', {})
+
+            # Check for potentially unsafe actions
+            if self._is_unsafe_action(action_type, parameters):
+                logging.warning(f"Skipping unsafe action: {action_type} with parameters {parameters}")
+                continue
+
+            # Check for inappropriate actions
+            if self._is_inappropriate_action(action_type, parameters):
+                logging.warning(f"Skipping inappropriate action: {action_type}")
+                continue
+
+            filtered_plan.append(action)
+
+        return filtered_plan
+
+    def _is_unsafe_action(self, action_type: str, parameters: Dict) -> bool:
+        """
+        Check if an action is potentially unsafe
+        """
+        # Example safety checks
+        if action_type == 'navigate_to_pose':
+            # Check if destination is in a safe area
+            x, y = parameters.get('x', 0), parameters.get('y', 0)
+            # Add logic to check if coordinates are in safe navigation areas
+            # This would integrate with navigation maps and safety zones
+
+        elif action_type == 'grasp_object':
+            # Check if object is safe to grasp (not too heavy, not dangerous)
+            object_name = parameters.get('object_name', '')
+            # Add logic to validate object safety
+
+        return False  # Placeholder - implement actual safety checks
+
+    def _is_inappropriate_action(self, action_type: str, parameters: Dict) -> bool:
+        """
+        Check if an action is inappropriate
+        """
+        # Example: prevent actions that might be inappropriate in educational setting
+        if action_type == 'speak':
+            text = parameters.get('text', '').lower()
+            inappropriate_keywords = ['inappropriate', 'offensive', 'harmful']  # Simplified list
+            for keyword in inappropriate_keywords:
+                if keyword in text:
+                    return True
+
+        return False  # Placeholder - implement actual appropriateness checks
+```
+
+## LLM Integration
+
+### Prompt Engineering
+The system uses carefully crafted prompts to guide the LLM in generating appropriate action sequences:
+
+```python
+class VLAActionPrompter:
+    def __init__(self):
+        self.system_prompt = """
+        You are an expert robotics planner. Your task is to convert natural language commands into structured action sequences for a humanoid robot in a simulated environment.
+
+        Rules:
+        1. Always return a valid JSON array of action objects
+        2. Each action must have 'type' and 'parameters' properties
+        3. Use ROS 2 compatible action types: navigate_to_pose, detect_object, grasp_object, release_object, rotate, speak, wait, perceive_environment
+        4. Include error handling and validation in your plans
+        5. Account for the robot's physical limitations
+        6. Consider environmental constraints and obstacles
+        7. If the command is ambiguous, ask for clarification or make reasonable assumptions
+        8. Prioritize safety in all generated actions
+        9. Ensure action sequences are executable in the given environment
+        """
+
+    def create_command_prompt(self, command: str, context: Dict) -> List[Dict]:
+        """
+        Create a complete prompt for the LLM with system context and user command
+        """
+        user_prompt = f"""
+        Command: "{command}"
+
+        Environmental Context:
+        {json.dumps(context.get('environment', {}), indent=2)}
+
+        Robot Capabilities:
+        {json.dumps(context.get('capabilities', {}), indent=2)}
+
+        Please generate a sequence of actions to fulfill this command. Return only the JSON array of actions.
+        """
+
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+```
+
+## Action Planning Strategies
+
+### Sequential Planning
+For simple commands, the system generates a linear sequence of actions:
+
+```
+Command: "Go to the kitchen"
+Plan: [navigate_to_pose(kitchen_location)]
+```
+
+### Hierarchical Planning
+For complex commands, the system breaks them into sub-tasks:
+
+```
+Command: "Find the red ball and bring it to me"
+Plan: [
+  perceive_environment(),
+  detect_object("red ball"),
+  navigate_to_pose(ball_location),
+  grasp_object("red ball"),
+  navigate_to_pose(user_location),
+  release_object("red ball")
+]
+```
+
+### Context-Aware Planning
+The system considers environmental context to generate appropriate actions:
+
+```python
+def generate_context_aware_plan(self, command: str, context: Dict) -> List[Dict]:
+    """
+    Generate a plan that takes environmental context into account
+    """
+    # Check if environment has known obstacles
+    obstacles = context.get('environment', {}).get('obstacles', [])
+
+    # Check if requested object is known to be in environment
+    objects = context.get('environment', {}).get('objects', [])
+
+    # Generate plan considering these factors
+    base_plan = self.llm_interface.generate_action_plan(command)
+
+    # Modify plan based on context
+    enhanced_plan = self._adapt_plan_for_context(base_plan, obstacles, objects)
+
+    return enhanced_plan
+```
+
+## Error Handling and Recovery
+
+### Ambiguous Command Handling
+When commands are unclear, the system can request clarification:
+
+1. Detect ambiguity using pattern matching or LLM assessment
+2. Generate appropriate clarification request
+3. Wait for user to provide more specific information
+4. Retry action planning with clarified command
+
+### Plan Validation and Correction
+Before execution, the system validates each action:
+
+1. Check action type is supported
+2. Validate parameter completeness and correctness
+3. Verify environmental feasibility
+4. Apply safety and appropriateness filters
+5. Generate corrected plan if needed

@@ -1,0 +1,762 @@
+---
+sidebar_position: 15
+---
+
+# Integrated VLA Control Loop
+
+## Overview
+This document describes the implementation of the integrated Vision-Language-Action (VLA) control loop. This system coordinates vision, language processing, and physical action execution in a continuous cycle, enabling the humanoid robot to execute complex tasks that require coordination between perception, language understanding, and physical actions.
+
+## Architecture
+
+The integrated VLA control loop consists of the following interconnected components:
+
+1. **Perception System**: Processes visual and sensor data to understand the environment
+2. **Language System**: Interprets voice commands and generates action plans
+3. **Action Execution**: Coordinates ROS 2 action servers for navigation, manipulation, and perception
+4. **State Management**: Maintains system state and handles transitions
+5. **Error Recovery**: Manages failures and attempts recovery
+6. **Logging & Monitoring**: Tracks state transitions and execution progress
+
+## Control Loop Implementation
+
+```python
+import rospy
+import threading
+import time
+from std_msgs.msg import String
+from actionlib_msgs.msg import GoalID
+from enum import Enum
+from typing import Dict, List, Optional, Any
+from .state_machine import VLAStateMachine, VLAState
+from .language_to_action import LanguageToActionTranslator
+from .voice_command_processing import VoiceCommandProcessor
+
+class VLAControlLoop:
+    def __init__(self, config):
+        self.config = config
+
+        # Initialize components
+        self.state_machine = VLAStateMachine(config)
+        self.language_translator = LanguageToActionTranslator(config, llm_interface)
+        self.voice_processor = VoiceCommandProcessor(config, self.state_machine)
+
+        # ROS publishers and subscribers
+        self.command_sub = rospy.Subscriber('/vla/command', String, self.command_callback)
+        self.state_pub = rospy.Publisher('/vla/state', String, queue_size=10)
+        self.action_plan_pub = rospy.Publisher('/vla/action_plan', GoalID, queue_size=10)
+
+        # Action execution tracking
+        self.current_action_plan = None
+        self.current_action_index = 0
+        self.action_feedback = {}
+
+        # Control loop state
+        self.is_running = False
+        self.control_thread = None
+
+        # Environment and robot context
+        self.environment_context = config.get('environment_context', {})
+        self.robot_capabilities = config.get('robot_capabilities', {})
+
+        rospy.loginfo("VLA Control Loop initialized")
+
+    def start_control_loop(self):
+        """
+        Start the main VLA control loop
+        """
+        self.is_running = True
+
+        # Start voice processing
+        self.voice_processor.start_processing(self.process_command)
+
+        # Start the main control loop in a separate thread
+        self.control_thread = threading.Thread(target=self._control_loop, daemon=True)
+        self.control_thread.start()
+
+        rospy.loginfo("VLA Control Loop started")
+
+    def stop_control_loop(self):
+        """
+        Stop the VLA control loop
+        """
+        self.is_running = False
+        self.voice_processor.stop_processing()
+        rospy.loginfo("VLA Control Loop stopped")
+
+    def command_callback(self, msg: String):
+        """
+        ROS callback for command messages
+        """
+        command_text = msg.data
+        rospy.loginfo(f"Received command: {command_text}")
+
+        # Process the command through the control loop
+        self.process_command(command_text, confidence=1.0)  # High confidence for direct commands
+
+    def process_command(self, command_text: str, confidence: float):
+        """
+        Process a voice or direct command through the VLA pipeline
+        """
+        rospy.loginfo(f"Processing command: '{command_text}' with confidence {confidence}")
+
+        # Validate confidence threshold
+        if confidence < self.config.get('confidence_threshold', 0.5):
+            rospy.logwarn(f"Command confidence {confidence} below threshold, ignoring")
+            return
+
+        # Transition to PROCESSING state
+        if self.state_machine.handle_audio_capture_complete():
+            rospy.loginfo("Transitioned to PROCESSING state")
+        else:
+            rospy.logerr("Failed to transition to PROCESSING state")
+            return
+
+        # Generate action plan using LLM
+        rospy.loginfo("Generating action plan with LLM...")
+        action_plan = self.language_translator.translate_command_to_action_plan(
+            command_text,
+            self.environment_context,
+            self.robot_capabilities
+        )
+
+        if not action_plan:
+            rospy.logerr("Failed to generate action plan")
+            self.state_machine.handle_plan_generation_failure()
+            return
+
+        rospy.loginfo(f"Generated action plan with {len(action_plan)} actions")
+
+        # Validate the action plan
+        is_valid, validation_msg = self.language_translator.validate_action_plan(
+            action_plan,
+            self.robot_capabilities
+        )
+
+        if not is_valid:
+            rospy.logerr(f"Action plan validation failed: {validation_msg}")
+            self.state_machine.handle_plan_generation_failure()
+            return
+
+        # Apply safety guardrails
+        filtered_plan = self.language_translator.apply_guardrails(action_plan)
+        rospy.loginfo(f"Applied guardrails, plan now has {len(filtered_plan)} actions")
+
+        # Transition to EXECUTING state
+        if self.state_machine.handle_plan_generation_success():
+            rospy.loginfo("Transitioned to EXECUTING state")
+
+            # Execute the action plan
+            self.execute_action_plan(filtered_plan)
+        else:
+            rospy.logerr("Failed to transition to EXECUTING state")
+            self.state_machine.handle_error_occurred("Failed to transition to execution state")
+
+    def execute_action_plan(self, action_plan: List[Dict]):
+        """
+        Execute a plan of actions in sequence
+        """
+        rospy.loginfo(f"Starting execution of action plan with {len(action_plan)} actions")
+
+        self.current_action_plan = action_plan
+        self.current_action_index = 0
+        action_count = len(action_plan)
+
+        # Update state machine to EXECUTING
+        # (This should already be handled by the calling function)
+
+        for i, action in enumerate(action_plan):
+            rospy.loginfo(f"Executing action {i+1}/{action_count}: {action['type']}")
+
+            # Update current action index
+            self.current_action_index = i
+
+            # Execute the action
+            success = self.execute_single_action(action)
+
+            if not success:
+                rospy.logerr(f"Action {i+1} failed: {action['type']}")
+
+                # Attempt recovery
+                recovery_success = self.attempt_recovery(action, i, action_plan)
+
+                if not recovery_success:
+                    rospy.logerr("Recovery failed, terminating action plan")
+                    self.state_machine.handle_action_execution_failure()
+                    return
+
+            # Publish execution progress
+            self.publish_execution_feedback(i + 1, action_count, action['type'])
+
+        # Plan completed successfully
+        rospy.loginfo("Action plan completed successfully")
+        self.state_machine.handle_action_execution_complete()
+
+        # Clear current plan
+        self.current_action_plan = None
+        self.current_action_index = 0
+
+    def execute_single_action(self, action: Dict) -> bool:
+        """
+        Execute a single action and return success status
+        """
+        action_type = action['type']
+        parameters = action.get('parameters', {})
+
+        rospy.loginfo(f"Executing action: {action_type} with params: {parameters}")
+
+        try:
+            if action_type == 'navigate_to_pose':
+                return self.execute_navigation_action(parameters)
+            elif action_type == 'detect_object':
+                return self.execute_perception_action(parameters)
+            elif action_type == 'grasp_object':
+                return self.execute_manipulation_action(parameters)
+            elif action_type == 'release_object':
+                return self.execute_manipulation_action(parameters)
+            elif action_type == 'speak':
+                return self.execute_speech_action(parameters)
+            elif action_type == 'wait':
+                return self.execute_wait_action(parameters)
+            elif action_type == 'perceive_environment':
+                return self.execute_perception_action(parameters)
+            else:
+                rospy.logerr(f"Unknown action type: {action_type}")
+                return False
+
+        except Exception as e:
+            rospy.logerr(f"Error executing action {action_type}: {e}")
+            return False
+
+    def execute_navigation_action(self, parameters: Dict) -> bool:
+        """
+        Execute a navigation action
+        """
+        try:
+            # Extract navigation parameters
+            x = parameters.get('x', 0.0)
+            y = parameters.get('y', 0.0)
+            z = parameters.get('z', 0.0)
+            qx = parameters.get('qx', 0.0)
+            qy = parameters.get('qy', 0.0)
+            qz = parameters.get('qz', 0.0)
+            qw = parameters.get('qw', 1.0)
+
+            # Create navigation goal
+            goal = {
+                'pose': {
+                    'position': {'x': x, 'y': y, 'z': z},
+                    'orientation': {'x': qx, 'y': qy, 'z': qz, 'w': qw}
+                }
+            }
+
+            # Publish navigation goal to ROS system
+            # In a real implementation, this would use actionlib to send goals to navigation stack
+            rospy.loginfo(f"Sending navigation goal to ({x}, {y}, {z})")
+
+            # Simulate navigation execution (in real system, this would wait for result)
+            time.sleep(2)  # Simulate navigation time
+
+            # For this example, assume navigation always succeeds
+            # In a real system, we would monitor the action server feedback
+            return True
+
+        except Exception as e:
+            rospy.logerr(f"Navigation action failed: {e}")
+            return False
+
+    def execute_perception_action(self, parameters: Dict) -> bool:
+        """
+        Execute a perception action
+        """
+        try:
+            object_type = parameters.get('object_type', 'any')
+            rospy.loginfo(f"Performing perception for object type: {object_type}")
+
+            # In a real implementation, this would interface with Isaac ROS perception nodes
+            # For this example, we'll simulate perception
+            time.sleep(1)  # Simulate perception processing time
+
+            # Simulate finding an object
+            if object_type.lower() in ['ball', 'red ball', 'any']:
+                # Simulate successful detection
+                self.action_feedback['detected_object'] = {
+                    'name': 'red_ball',
+                    'type': 'ball',
+                    'color': 'red',
+                    'position': {'x': 1.5, 'y': 0.8, 'z': 0.5}
+                }
+                rospy.loginfo(f"Detected {object_type}: red_ball at (1.5, 0.8, 0.5)")
+                return True
+            else:
+                rospy.loginfo(f"Object {object_type} not found")
+                return False
+
+        except Exception as e:
+            rospy.logerr(f"Perception action failed: {e}")
+            return False
+
+    def execute_manipulation_action(self, parameters: Dict) -> bool:
+        """
+        Execute a manipulation action
+        """
+        try:
+            action_type = parameters.get('action_type', 'grasp')
+            object_name = parameters.get('object_name', 'unknown')
+
+            rospy.loginfo(f"Performing manipulation: {action_type} for {object_name}")
+
+            # In a real implementation, this would interface with manipulation controllers
+            # For this example, we'll simulate manipulation
+            time.sleep(2)  # Simulate manipulation time
+
+            # Simulate success
+            rospy.loginfo(f"Manipulation action {action_type} for {object_name} completed")
+            return True
+
+        except Exception as e:
+            rospy.logerr(f"Manipulation action failed: {e}")
+            return False
+
+    def execute_speech_action(self, parameters: Dict) -> bool:
+        """
+        Execute a speech action
+        """
+        try:
+            text = parameters.get('text', '')
+            rospy.loginfo(f"Speaking: {text}")
+
+            # In a real implementation, this would use text-to-speech
+            # For this example, we'll just log the text
+            time.sleep(len(text) / 10)  # Simulate speaking time based on text length
+
+            rospy.loginfo("Speech action completed")
+            return True
+
+        except Exception as e:
+            rospy.logerr(f"Speech action failed: {e}")
+            return False
+
+    def execute_wait_action(self, parameters: Dict) -> bool:
+        """
+        Execute a wait action
+        """
+        try:
+            duration = parameters.get('duration', 1.0)
+            rospy.loginfo(f"Waiting for {duration} seconds")
+
+            time.sleep(duration)
+
+            rospy.loginfo("Wait action completed")
+            return True
+
+        except Exception as e:
+            rospy.logerr(f"Wait action failed: {e}")
+            return False
+
+    def attempt_recovery(self, failed_action: Dict, action_index: int, action_plan: List[Dict]) -> bool:
+        """
+        Attempt to recover from a failed action
+        """
+        rospy.loginfo(f"Attempting recovery from failed action: {failed_action['type']}")
+
+        # Check if we've exceeded recovery attempts
+        if not self.state_machine.can_attempt_recovery():
+            rospy.logerr("Max recovery attempts reached")
+            return False
+
+        # Handle specific recovery strategies based on action type
+        action_type = failed_action['type']
+
+        if action_type == 'navigate_to_pose':
+            return self.recover_navigation_failure(failed_action, action_index, action_plan)
+        elif action_type == 'detect_object':
+            return self.recover_perception_failure(failed_action, action_index, action_plan)
+        elif action_type == 'grasp_object':
+            return self.recover_manipulation_failure(failed_action, action_index, action_plan)
+        else:
+            # For other action types, try the same action again
+            return self.retry_action(failed_action)
+
+    def recover_navigation_failure(self, failed_action: Dict, action_index: int, action_plan: List[Dict]) -> bool:
+        """
+        Recovery strategy for navigation failures
+        """
+        rospy.loginfo("Attempting navigation recovery")
+
+        # Try alternative path
+        try:
+            # In a real implementation, this would recalculate a path avoiding obstacles
+            # For this example, we'll try the same location with a different approach
+            original_params = failed_action.get('parameters', {})
+
+            # Slightly adjust the target position
+            adjusted_params = original_params.copy()
+            adjusted_params['x'] = original_params.get('x', 0) + 0.1
+            adjusted_params['y'] = original_params.get('y', 0) + 0.1
+
+            recovery_action = {
+                'type': 'navigate_to_pose',
+                'parameters': adjusted_params
+            }
+
+            success = self.execute_single_action(recovery_action)
+            if success:
+                rospy.loginfo("Navigation recovery successful")
+                return True
+            else:
+                rospy.loginfo("Navigation recovery failed")
+                return False
+
+        except Exception as e:
+            rospy.logerr(f"Navigation recovery error: {e}")
+            return False
+
+    def recover_perception_failure(self, failed_action: Dict, action_index: int, action_plan: List[Dict]) -> bool:
+        """
+        Recovery strategy for perception failures
+        """
+        rospy.loginfo("Attempting perception recovery")
+
+        # Try again with different parameters
+        try:
+            # In a real implementation, this might involve changing camera angles,
+            # adjusting lighting, or using different perception algorithms
+            original_params = failed_action.get('parameters', {})
+
+            # Retry with the same parameters (in a real system, we might adjust parameters)
+            success = self.execute_single_action(failed_action)
+            if success:
+                rospy.loginfo("Perception recovery successful")
+                return True
+            else:
+                rospy.loginfo("Perception recovery failed")
+                return False
+
+        except Exception as e:
+            rospy.logerr(f"Perception recovery error: {e}")
+            return False
+
+    def recover_manipulation_failure(self, failed_action: Dict, action_index: int, action_plan: List[Dict]) -> bool:
+        """
+        Recovery strategy for manipulation failures
+        """
+        rospy.loginfo("Attempting manipulation recovery")
+
+        # Try different grasp strategy or give up
+        try:
+            # In a real implementation, this might involve trying different grasp points
+            # or adjusting the approach angle
+            original_params = failed_action.get('parameters', {})
+
+            # Retry with same parameters
+            success = self.execute_single_action(failed_action)
+            if success:
+                rospy.loginfo("Manipulation recovery successful")
+                return True
+            else:
+                # If retry fails, try to continue with the plan if possible
+                rospy.loginfo("Manipulation recovery failed, continuing plan if possible")
+
+                # In some cases, we might want to skip this action and continue
+                # For now, we'll consider manipulation failures as terminal
+                return False
+
+        except Exception as e:
+            rospy.logerr(f"Manipulation recovery error: {e}")
+            return False
+
+    def retry_action(self, action: Dict) -> bool:
+        """
+        Simple retry strategy for any action
+        """
+        rospy.loginfo(f"Retrying action: {action['type']}")
+
+        try:
+            # Simple retry once
+            success = self.execute_single_action(action)
+            if success:
+                rospy.loginfo("Action retry successful")
+                return True
+            else:
+                rospy.loginfo("Action retry failed")
+                return False
+        except Exception as e:
+            rospy.logerr(f"Action retry error: {e}")
+            return False
+
+    def publish_execution_feedback(self, current_step: int, total_steps: int, current_action: str):
+        """
+        Publish feedback about action execution progress
+        """
+        feedback_msg = {
+            'current_action': current_action,
+            'current_step': current_step,
+            'total_steps': total_steps,
+            'progress_percentage': (current_step / total_steps) * 100.0,
+            'state': self.state_machine.current_state.value
+        }
+
+        feedback_str = String()
+        feedback_str.data = str(feedback_msg)
+        self.state_pub.publish(feedback_str)
+
+    def _control_loop(self):
+        """
+        Main control loop thread function
+        """
+        rate = rospy.Rate(10)  # 10 Hz control loop
+
+        while self.is_running and not rospy.is_shutdown():
+            try:
+                # Publish current state
+                state_info = self.state_machine.get_current_state_info()
+                state_msg = String()
+                state_msg.data = str(state_info)
+                self.state_pub.publish(state_msg)
+
+                # Additional control loop logic can go here
+                # For now, we rely on event-driven processing
+
+                rate.sleep()
+
+            except Exception as e:
+                rospy.logerr(f"Error in control loop: {e}")
+                time.sleep(0.1)  # Brief pause before continuing
+
+    def get_execution_status(self) -> Dict[str, Any]:
+        """
+        Get the current execution status
+        """
+        return {
+            'state': self.state_machine.current_state.value,
+            'active_plan_length': len(self.current_action_plan) if self.current_action_plan else 0,
+            'current_action_index': self.current_action_index,
+            'current_action': (
+                self.current_action_plan[self.current_action_index]['type']
+                if self.current_action_plan and self.current_action_index < len(self.current_action_plan)
+                else None
+            ),
+            'recovery_attempts': self.state_machine.recovery_attempts,
+            'last_error': self.state_machine.last_error
+        }
+```
+
+## Integration with Perception, Navigation, and Manipulation
+
+### Perception Integration
+The VLA system integrates with Isaac ROS perception pipelines:
+
+```python
+class VLA_Perception_Integration:
+    def __init__(self):
+        # Subscribe to Isaac ROS perception topics
+        self.detection_sub = rospy.Subscriber('/isaac_ros/detections', Detection2DArray, self.detection_callback)
+        self.depth_sub = rospy.Subscriber('/isaac_ros/depth', Image, self.depth_callback)
+        self.pose_sub = rospy.Subscriber('/isaac_ros/pose', PoseStamped, self.pose_callback)
+
+    def detection_callback(self, detections):
+        """
+        Process object detections from Isaac ROS
+        """
+        # Update environment context with detected objects
+        for detection in detections.detections:
+            object_info = {
+                'name': detection.results[0].id,
+                'type': detection.results[0].label,
+                'confidence': detection.results[0].score,
+                'position': self.estimate_position_from_detection(detection)
+            }
+            self.update_environment_context(object_info)
+
+    def estimate_position_from_detection(self, detection):
+        """
+        Estimate 3D position from 2D detection and depth information
+        """
+        # Implementation would use depth data to estimate 3D position
+        pass
+```
+
+### Navigation Integration
+The VLA system integrates with Nav2 for path planning:
+
+```python
+import actionlib
+from nav2_msgs.action import NavigateToPose
+
+class VLA_Navigation_Integration:
+    def __init__(self):
+        # Create action client for Nav2
+        self.nav_client = actionlib.SimpleActionClient('navigate_to_pose', NavigateToPose)
+        self.nav_client.wait_for_server()
+
+    def send_navigation_goal(self, pose):
+        """
+        Send navigation goal to Nav2
+        """
+        goal = NavigateToPose.Goal()
+        goal.pose.pose = pose
+        goal.pose.header.frame_id = 'map'
+
+        # Send goal and wait for result
+        self.nav_client.send_goal(goal)
+        result = self.nav_client.wait_for_result()
+
+        return result
+```
+
+### Manipulation Integration
+The VLA system integrates with manipulation controllers:
+
+```python
+import actionlib
+from control_msgs.action import FollowJointTrajectory
+
+class VLA_Manipulation_Integration:
+    def __init__(self):
+        # Create action client for manipulation
+        self.manip_client = actionlib.SimpleActionClient('manipulation_controller', FollowJointTrajectory)
+        self.manip_client.wait_for_server()
+
+    def send_manipulation_goal(self, object_info):
+        """
+        Send manipulation goal based on object information
+        """
+        # Implementation would generate appropriate joint trajectories
+        # for grasping, moving, or releasing the object
+        pass
+```
+
+## Obstacle Detection and Replanning
+
+### Dynamic Obstacle Handling
+```python
+def handle_dynamic_obstacles(self, current_plan: List[Dict]) -> List[Dict]:
+    """
+    Detect and handle obstacles that appear during execution
+    """
+    # Check for new obstacles in navigation actions
+    for i, action in enumerate(current_plan):
+        if action['type'] == 'navigate_to_pose':
+            # Check if path is still clear
+            if not self.is_path_clear(action['parameters']):
+                # Recalculate path avoiding new obstacles
+                new_plan = self.recalculate_path(action['parameters'])
+                if new_plan:
+                    # Update the plan with the new route
+                    current_plan[i] = new_plan[0]  # Assuming single action replacement
+                else:
+                    # Handle path recalculation failure
+                    self.state_machine.handle_error_occurred("Path blocked, unable to recalculate")
+                    return None
+
+    return current_plan
+```
+
+## Object Recognition and Localization
+
+### Integration with Isaac Sim
+The system leverages Isaac Sim's advanced perception capabilities:
+
+```python
+class ObjectRecognitionManager:
+    def __init__(self):
+        # Initialize Isaac ROS perception nodes
+        self.perception_pipeline = self.initialize_isaac_perception()
+
+    def recognize_and_localize(self, object_type: str) -> Optional[Dict]:
+        """
+        Recognize and localize objects in the environment
+        """
+        # Use Isaac ROS perception to detect objects
+        detections = self.perception_pipeline.detect_objects()
+
+        # Find the requested object type
+        for detection in detections:
+            if self.matches_object_type(detection, object_type):
+                return {
+                    'name': detection.id,
+                    'type': detection.label,
+                    'position': detection.position,
+                    'confidence': detection.confidence
+                }
+
+        return None
+```
+
+## Error Recovery Mechanisms
+
+### State Reset Recovery
+```python
+def reset_state_on_recovery(self):
+    """
+    Reset system state during recovery operations
+    """
+    # Clear current action plan
+    self.current_action_plan = None
+    self.current_action_index = 0
+
+    # Reset action feedback
+    self.action_feedback = {}
+
+    # Clear any temporary state
+    self.environment_context = self.get_fresh_environment_context()
+
+    # Reset recovery counter
+    self.state_machine.reset_recovery_attempts()
+```
+
+### Fallback Behaviors
+```python
+def execute_fallback_behavior(self, failure_type: str):
+    """
+    Execute appropriate fallback behavior based on failure type
+    """
+    if failure_type == 'navigation':
+        # Return to a safe location
+        return_to_safe_location()
+    elif failure_type == 'manipulation':
+        # Open gripper to release any partial grasp
+        open_gripper()
+    elif failure_type == 'perception':
+        # Request human assistance or move to better viewpoint
+        request_assistance()
+    else:
+        # General fallback - return to idle state
+        self.state_machine.transition_to(VLAState.IDLE, "fallback executed")
+```
+
+## Comprehensive Logging and State Tracking
+
+The system maintains detailed logs of all operations:
+
+```python
+import logging
+import json
+from datetime import datetime
+
+class VLAEventLogger:
+    def __init__(self, log_file_path: str = "vla_events.log"):
+        self.log_file_path = log_file_path
+        self.logger = logging.getLogger('VLAControlLoop')
+        self.logger.setLevel(logging.INFO)
+
+        # Create file handler
+        file_handler = logging.FileHandler(log_file_path)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+
+    def log_event(self, event_type: str, details: Dict):
+        """
+        Log a VLA system event
+        """
+        event = {
+            'timestamp': datetime.now().isoformat(),
+            'event_type': event_type,
+            'details': details,
+            'state': self.get_current_state_info()
+        }
+
+        self.logger.info(json.dumps(event))
+```

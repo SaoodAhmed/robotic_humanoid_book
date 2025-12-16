@@ -1,0 +1,388 @@
+---
+sidebar_position: 8
+---
+
+# Voice Command Processing
+
+## Overview
+This document describes the implementation of voice command processing in the Vision-Language-Action (VLA) system. This is the foundational capability that enables all other VLA functionality by converting spoken commands into structured text that can be processed by subsequent components.
+
+## Architecture
+
+The voice command processing pipeline consists of the following components:
+
+1. **Voice Activation Detection**: Detects the activation phrase to begin listening
+2. **Speech Recognition**: Converts speech to text using the configured STT engine
+3. **Command Validation**: Validates the recognized text meets quality requirements
+4. **Confidence Scoring**: Assigns a confidence score to the recognition result
+5. **Message Publishing**: Publishes the recognized command to the ROS 2 system
+
+## Implementation
+
+```python
+import speech_recognition as sr
+import rospy
+from std_msgs.msg import String
+from threading import Thread
+import time
+import logging
+from .speech_recognition import SpeechRecognitionManager
+from .state_machine import VLAStateMachine, VLAState
+
+class VoiceCommandProcessor:
+    def __init__(self, config, state_machine: VLAStateMachine):
+        self.config = config
+        self.state_machine = state_machine
+
+        # Initialize speech recognition
+        self.speech_manager = SpeechRecognitionManager(config)
+
+        # ROS publishers
+        self.voice_command_pub = rospy.Publisher('/vla/voice_command', String, queue_size=10)
+
+        # Configuration
+        self.activation_phrase = config.get('voice_activation_keyword', 'hey robot')
+        self.confidence_threshold = config.get('confidence_threshold', 0.5)
+        self.latency_target = config.get('latency_target', 200)  # in milliseconds
+
+        # State tracking
+        self.is_running = False
+        self.command_callback = None
+
+        logging.info("Voice Command Processor initialized")
+
+    def start_processing(self, callback: callable = None):
+        """
+        Start the voice command processing pipeline
+        """
+        self.command_callback = callback
+        self.is_running = True
+
+        # Register state machine callbacks
+        self.state_machine.register_state_callback(VLAState.LISTENING, self._on_enter_listening)
+        self.state_machine.register_state_callback(VLAState.PROCESSING, self._on_enter_processing)
+
+        # Start the listening thread
+        listening_thread = Thread(target=self._listening_loop, daemon=True)
+        listening_thread.start()
+
+        logging.info("Voice command processing started")
+
+    def _listening_loop(self):
+        """
+        Main listening loop that processes voice commands
+        """
+        while self.is_running:
+            try:
+                # Only process commands if in IDLE state
+                if self.state_machine.current_state == VLAState.IDLE:
+                    # Transition to LISTENING state
+                    self.state_machine.handle_voice_activation()
+
+                    # Listen for activation phrase
+                    self.speech_manager.start_listening(
+                        self._on_command_received,
+                        self.activation_phrase
+                    )
+
+                    # If we exit listening without a command, return to IDLE
+                    if self.state_machine.current_state == VLAState.LISTENING:
+                        self.state_machine.transition_to(VLAState.IDLE, "listening timeout")
+
+            except Exception as e:
+                logging.error(f"Error in listening loop: {e}")
+                time.sleep(1)  # Brief pause before continuing
+
+    def _on_command_received(self, command_text: str, confidence: float):
+        """
+        Callback when a command is received
+        """
+        start_time = time.time()
+
+        # Transition to PROCESSING state
+        self.state_machine.handle_audio_capture_complete()
+
+        # Validate the command
+        is_valid, validation_msg = self._validate_command(command_text, confidence)
+
+        if is_valid:
+            # Log the recognized command
+            rospy.loginfo(f"Recognized command: '{command_text}' (confidence: {confidence:.2f})")
+
+            # Publish the command to ROS system
+            self._publish_voice_command(command_text, confidence)
+
+            # Execute the callback if provided
+            if self.command_callback:
+                try:
+                    self.command_callback(command_text, confidence)
+                except Exception as e:
+                    logging.error(f"Error in command callback: {e}")
+
+            # Measure processing latency
+            latency_ms = (time.time() - start_time) * 1000
+            if latency_ms > self.latency_target:
+                logging.warning(f"Processing latency {latency_ms:.1f}ms exceeded target {self.latency_target}ms")
+            else:
+                logging.debug(f"Processing latency: {latency_ms:.1f}ms")
+        else:
+            logging.warning(f"Invalid command received: {validation_msg}")
+            # Return to IDLE state
+            self.state_machine.transition_to(VLAState.IDLE, f"invalid command: {validation_msg}")
+
+    def _validate_command(self, command_text: str, confidence: float) -> tuple[bool, str]:
+        """
+        Validate the recognized command
+        """
+        # Check if command is empty
+        if not command_text or len(command_text.strip()) == 0:
+            return False, "command is empty"
+
+        # Check if command is too short
+        if len(command_text.strip()) < 3:
+            return False, "command is too short"
+
+        # Check confidence threshold
+        if confidence < self.confidence_threshold:
+            return False, f"confidence {confidence:.2f} below threshold {self.confidence_threshold}"
+
+        # Check command length
+        if len(command_text) > 100:  # Arbitrary limit to prevent very long commands
+            return False, "command is too long"
+
+        # All checks passed
+        return True, "command is valid"
+
+    def _publish_voice_command(self, command_text: str, confidence: float):
+        """
+        Publish the recognized voice command to ROS system
+        """
+        # Create and populate the message
+        cmd_msg = String()
+        cmd_msg.data = f"{command_text}|{confidence}"
+
+        # Publish to the voice command topic
+        self.voice_command_pub.publish(cmd_msg)
+
+        logging.info(f"Published voice command to /vla/voice_command: '{command_text}'")
+
+    def _on_enter_listening(self, old_state, new_state):
+        """
+        Callback when entering LISTENING state
+        """
+        logging.info("Entering LISTENING state - waiting for voice activation")
+        # Additional setup for listening state could go here
+
+    def _on_enter_processing(self, old_state, new_state):
+        """
+        Callback when entering PROCESSING state
+        """
+        logging.info("Entering PROCESSING state - converting speech to text")
+        # Additional setup for processing state could go here
+
+    def stop_processing(self):
+        """
+        Stop the voice command processing
+        """
+        self.is_running = False
+        self.speech_manager.stop_listening()
+        logging.info("Voice command processing stopped")
+
+    def test_microphone(self) -> bool:
+        """
+        Test if the microphone is working properly
+        """
+        return self.speech_manager.test_microphone()
+```
+
+## Voice Activation Detection
+
+### Activation Phrase Recognition
+- Configurable activation phrase (default: "hey robot")
+- Fuzzy matching to account for speech recognition errors
+- Adjustable sensitivity for different environments
+
+### Activation Process
+1. System listens continuously in IDLE state
+2. When activation phrase is detected, transitions to LISTENING
+3. Captures the following phrase as the actual command
+4. Processes the command through the pipeline
+
+## Speech Recognition Setup
+
+### Engine Configuration
+The system supports multiple speech recognition engines:
+
+- **Google Web Speech API**: High accuracy with internet connectivity
+- **Vosk**: Offline recognition with good accuracy
+- **PocketSphinx**: Lightweight offline recognition
+- **Wit.ai**: Alternative cloud-based recognition
+
+### Quality Assurance
+- Confidence scoring for each recognition
+- Validation against minimum confidence threshold (default: 0.5)
+- Noise filtering and ambient sound adaptation
+
+## Performance Optimization
+
+### Latency Targets
+- Target &lt;200ms from speech to text conversion
+- Optimized audio buffering
+- Efficient recognition pipeline
+
+### Resource Management
+- Audio buffer management
+- Memory usage optimization
+- CPU load balancing
+
+## Noise Filtering
+
+### Adaptive Noise Cancellation
+The system implements adaptive noise cancellation to improve speech recognition accuracy in various environments:
+
+```python
+import numpy as np
+from scipy import signal
+
+class NoiseFilter:
+    def __init__(self):
+        # Initialize noise filtering parameters
+        self.noise_floor = 0.0
+        self.adaptive_threshold = True
+
+    def apply_noise_gate(self, audio_data, threshold=None):
+        """
+        Apply noise gate to remove low-level background noise
+        """
+        if threshold is None:
+            threshold = self.estimate_noise_floor(audio_data)
+
+        # Apply gate: zero out samples below threshold
+        gated_audio = np.where(np.abs(audio_data) >= threshold, audio_data, 0)
+        return gated_audio
+
+    def estimate_noise_floor(self, audio_data, percentile=20):
+        """
+        Estimate noise floor using low percentile of amplitude
+        """
+        if self.adaptive_threshold:
+            # Calculate noise floor as 20th percentile of amplitude
+            noise_floor = np.percentile(np.abs(audio_data), percentile)
+            self.noise_floor = max(0.01, noise_floor)  # Minimum threshold
+            return self.noise_floor
+        else:
+            return 0.01  # Fixed threshold
+
+    def apply_spectral_subtraction(self, audio_data, sample_rate=16000):
+        """
+        Apply spectral subtraction for noise reduction
+        """
+        # Convert to frequency domain
+        fft_data = np.fft.fft(audio_data)
+        magnitude = np.abs(fft_data)
+        phase = np.angle(fft_data)
+
+        # Estimate noise spectrum (assuming initial portion is noise)
+        noise_length = min(len(audio_data) // 10, 2048)  # Use first 10% or 2048 samples
+        noise_spectrum = np.abs(np.fft.fft(audio_data[:noise_length]))
+
+        # Subtract noise spectrum
+        enhanced_magnitude = np.maximum(magnitude - noise_spectrum, 0.3 * magnitude)
+
+        # Reconstruct signal
+        enhanced_fft = enhanced_magnitude * np.exp(1j * phase)
+        enhanced_audio = np.real(np.fft.ifft(enhanced_fft))
+
+        return enhanced_audio.astype(audio_data.dtype)
+```
+
+### Environmental Adaptation
+- Real-time ambient noise adjustment
+- Dynamic threshold calibration
+- Echo cancellation for multi-robot environments
+
+## Latency Optimization
+
+### Performance Targets
+- Target &lt;200ms from speech to text conversion
+- Sub-100ms processing for simple commands
+- Optimized audio buffering for minimal delay
+
+### Optimization Techniques
+
+```python
+import threading
+import queue
+import time
+
+class LatencyOptimizer:
+    def __init__(self, target_latency_ms=200):
+        self.target_latency = target_latency_ms / 1000.0  # Convert to seconds
+        self.processing_times = []
+        self.max_history = 100
+
+    def measure_processing_time(self, func):
+        """
+        Decorator to measure and log processing time
+        """
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            result = func(*args, **kwargs)
+            end_time = time.time()
+
+            processing_time = end_time - start_time
+            self.processing_times.append(processing_time)
+
+            # Keep only recent measurements
+            if len(self.processing_times) > self.max_history:
+                self.processing_times.pop(0)
+
+            # Log if latency exceeds target
+            if processing_time > self.target_latency:
+                rospy.logwarn(f"Processing time {processing_time*1000:.1f}ms exceeded target {self.target_latency*1000:.1f}ms")
+            else:
+                rospy.logdebug(f"Processing time: {processing_time*1000:.1f}ms")
+
+            return result
+        return wrapper
+
+    def get_average_latency(self):
+        """
+        Get average processing latency
+        """
+        if not self.processing_times:
+            return 0.0
+        return sum(self.processing_times) / len(self.processing_times)
+
+    def get_latency_percentile(self, percentile=95):
+        """
+        Get latency at specified percentile
+        """
+        if not self.processing_times:
+            return 0.0
+        sorted_times = sorted(self.processing_times)
+        index = int(len(sorted_times) * percentile / 100)
+        return sorted_times[min(index, len(sorted_times) - 1)]
+```
+
+### Buffer Optimization
+- Minimal audio buffering to reduce delay
+- Asynchronous processing to avoid blocking
+- Optimized FFT sizes for real-time performance
+
+## Error Handling
+
+### Common Issues
+- **Low confidence**: Recognition below threshold
+- **No speech detected**: Timeout waiting for command
+- **Recognition errors**: Unintelligible audio
+- **Microphone issues**: Hardware problems
+- **Network issues**: For cloud-based recognition
+- **High latency**: Processing delays exceeding targets
+
+### Recovery Mechanisms
+- Automatic retry on recognition failure
+- Return to IDLE state on persistent errors
+- Logging for debugging and analysis
+- Fallback to alternative recognition engines
+- Graceful degradation when latency targets not met

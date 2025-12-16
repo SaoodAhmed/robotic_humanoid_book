@@ -1,0 +1,170 @@
+---
+sidebar_position: 18
+---
+
+# VLA System Architecture
+
+## Overview
+
+The Vision-Language-Action (VLA) system architecture provides a comprehensive framework for integrating voice command processing, language-to-action translation, and robot control in a unified system. This architecture enables natural human-robot interaction through voice commands that are processed into executable robot actions.
+
+## High-Level Architecture
+
+The VLA system follows a modular, service-oriented architecture that separates concerns while maintaining tight integration between components:
+
+```
+User Voice Command
+        ↓
+Voice Processing Layer → Speech Recognition → Command Validation
+        ↓
+Language Processing Layer → LLM Integration → Action Planning
+        ↓
+Control Layer → State Management → Action Execution
+        ↓
+Robot Interface Layer → ROS 2 Communication → Isaac Sim Execution
+```
+
+## Component Breakdown
+
+### 1. Voice Processing Layer
+
+The voice processing layer handles audio input and converts it to text commands:
+
+- **Voice Activation Detection**: Listens for activation phrases to begin command processing
+- **Speech Recognition**: Converts spoken commands to text using various STT engines
+- **Command Validation**: Ensures commands meet quality and safety criteria
+- **Noise Filtering**: Applies adaptive filtering to improve recognition accuracy
+
+### 2. Language Processing Layer
+
+The language processing layer interprets commands and generates action plans:
+
+- **LLM Interface**: Connects to large language models for action planning
+- **Context Enrichment**: Adds environmental and capability context to prompts
+- **Action Plan Generation**: Creates sequences of ROS 2 actions from natural language
+- **Safety Guardrails**: Ensures generated actions are safe and appropriate
+
+### 3. Control Layer
+
+The control layer manages system state and coordinates execution:
+
+- **State Machine**: Maintains system state and handles transitions
+- **Action Orchestrator**: Coordinates execution of action sequences
+- **Error Recovery**: Manages failures and attempts recovery
+- **Execution Monitoring**: Tracks action progress and system state
+
+### 4. Robot Interface Layer
+
+The robot interface layer connects to the robotic platform:
+
+- **ROS 2 Bridge**: Facilitates communication with ROS 2 ecosystem
+- **Isaac Sim Integration**: Interfaces with simulation environment
+- **Action Servers**: Communicates with navigation, manipulation, and perception systems
+- **Sensor Integration**: Incorporates real-time sensor feedback
+
+## Data Flow Architecture
+
+### Voice Command Processing Flow
+```
+Microphone Input → Audio Buffer → Noise Filtering → STT Processing → Text Output
+```
+
+### Action Planning Flow
+```
+Voice Command → LLM Prompt → Action Sequence → Validation → Execution Queue
+```
+
+### Execution Flow
+```
+Action Queue → State Transition → ROS Action → Feedback → State Update
+```
+
+## Integration Points
+
+### Isaac Sim Integration
+The system integrates with Isaac Sim through:
+
+- **Perception Pipeline**: Isaac ROS nodes for object detection and scene understanding
+- **Navigation System**: Integration with Nav2 for path planning
+- **Manipulation Control**: Direct interfaces with manipulation controllers
+- **Simulation Environment**: Realistic physics and sensor simulation
+
+### ROS 2 Integration
+The system uses ROS 2 for:
+
+- **Communication**: Standard message passing between components
+- **Action Management**: Standard actionlib for long-running operations
+- **Service Interfaces**: Synchronous operations and configuration
+- **Parameter Management**: Runtime configuration and tuning
+
+## Security Considerations
+
+### Input Validation
+- Voice command sanitization to prevent injection attacks
+- LLM prompt validation to prevent prompt injection
+- Action plan validation to prevent unsafe operations
+
+### Authentication
+- Secure API key management for LLM services
+- ROS 2 communication security
+- Simulation environment access controls
+
+### Privacy
+- Voice data handling and storage policies
+- User command logging and retention
+- Data anonymization for analytics
+
+## Performance Architecture
+
+### Latency Optimization
+- Asynchronous processing for non-blocking operations
+- Caching for frequently used commands and responses
+- Optimized audio buffering for minimal delay
+
+### Resource Management
+- Efficient memory usage for continuous operation
+- CPU load balancing across system components
+- GPU utilization for perception and simulation
+
+### Scalability
+- Support for multiple concurrent users (up to 50)
+- Resource allocation for educational settings
+- Performance monitoring and alerting
+
+## Safety Architecture
+
+### Operational Safety
+- Collision avoidance during navigation
+- Force limiting during manipulation
+- Safe state management during failures
+
+### Error Handling
+- Graceful degradation when components fail
+- Recovery mechanisms for common failure modes
+- Safe state transitions during errors
+
+## Deployment Architecture
+
+### Simulation-First Approach
+- All functionality validated in simulation before real-robot deployment
+- Parallel simulation and real-robot execution capabilities
+- Easy transition from simulation to physical robots
+
+### Educational Focus
+- Multi-user support for classroom settings
+- Comprehensive logging for learning analytics
+- Accessible interfaces for students with varying experience levels
+
+## Diagram Reference
+
+For visual representation of the architecture, see the [VLA System Architecture Diagram](/module-4-assets/diagrams/vla-architecture.svg).
+
+## Future Extensions
+
+The architecture is designed to support future enhancements:
+
+- Multi-modal input (voice + gesture + vision)
+- Learning from demonstration capabilities
+- Collaborative robotics with multiple agents
+- Real-world deployment considerations
+- Advanced perception and manipulation capabilities

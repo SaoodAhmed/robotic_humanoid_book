@@ -1,0 +1,342 @@
+/* Beautiful Technical Requirements Styles */
+
+.techRequirements {
+  padding: 5rem 0;
+  background-color: #f9f9ff;
+}
+
+.sectionTitle {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  color: #1a237e;
+  position: relative;
+  text-align: center;
+}
+
+.sectionTitle::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(to right, #1565c0, #1565c0);
+  border-radius: 2px;
+}
+
+.sectionDescription {
+  font-size: 1.25rem;
+  color: #555;
+  margin-bottom: 3rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.requirementCategory {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  margin-bottom: 2rem;
+  height: 100%;
+}
+
+.categoryIcon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.categoryTitle {
+  font-size: 1.5rem;
+  color: #1a237e;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.requirementList {
+  list-style: none;
+  padding: 0;
+}
+
+.requirementItem {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.requirementItem:last-child {
+  border-bottom: none;
+}
+
+.reqName {
+  font-weight: 600;
+  color: #1a237e;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.reqSpecs {
+  margin-bottom: 0.5rem;
+}
+
+.minSpec, .recSpec {
+  padding: 0.25rem 0;
+  font-size: 0.95rem;
+}
+
+.minSpec {
+  color: #d32f2f;
+}
+
+.recSpec {
+  color: #1565c0;
+}
+
+.reqJustification {
+  color: #666;
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.installationGuide {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+  border-radius: 16px;
+  padding: 3rem;
+  margin-top: 3rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  border-left: 4px solid #1565c0;
+}
+
+.installationTitle {
+  font-size: 1.75rem;
+  color: #1a237e;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.installationSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.installStep {
+  display: flex;
+  align-items: flex-start;
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.stepNumber {
+  background: linear-gradient(135deg, #1565c0, #1565c0);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-right: 1.5rem;
+  flex-shrink: 0;
+}
+
+.stepContent {
+  flex-grow: 1;
+}
+
+.stepTitle {
+  font-size: 1.25rem;
+  color: #1a237e;
+  margin-bottom: 0.5rem;
+}
+
+.stepDescription {
+  color: #666;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.compatibilityMatrix {
+  margin-top: 3rem;
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  overflow-x: auto;
+}
+
+.matrixTitle {
+  font-size: 1.5rem;
+  color: #1a237e;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.compatibilityTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.compatibilityTable th {
+  background-color: #1565c0;
+  color: white;
+  padding: 1rem;
+  text-align: left;
+}
+
+.compatibilityTable td {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.compatibilityTable tr:nth-child(even) {
+  background-color: #f9f9ff;
+}
+
+.compatibilityTable tr:hover {
+  background-color: #f0f4ff;
+}
+
+/* Animation classes */
+.fadeInLeft {
+  opacity: 0;
+  transform: translateX(-30px);
+  animation: fadeInLeft 0.6s ease forwards;
+}
+
+.fadeInRight {
+  opacity: 0;
+  transform: translateX(30px);
+  animation: fadeInRight 0.6s ease forwards;
+}
+
+.fadeInUp {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.delay1 { animation-delay: 0.2s; }
+.delay2 { animation-delay: 0.4s; }
+.delay3 { animation-delay: 0.6s; }
+.delay4 { animation-delay: 0.8s; }
+.delay5 { animation-delay: 1.0s; }
+
+@keyframes fadeInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .techRequirements {
+    padding: 3rem 0;
+  }
+
+  .sectionTitle {
+    font-size: 2rem;
+  }
+
+  .requirementCategory {
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .installationGuide {
+    padding: 1.5rem;
+  }
+
+  .installStep {
+    flex-direction: column;
+  }
+
+  .stepNumber {
+    margin-bottom: 1rem;
+    margin-right: 0;
+  }
+
+  .compatibilityTable {
+    font-size: 0.8rem;
+  }
+
+  .compatibilityTable th,
+  .compatibilityTable td {
+    padding: 0.75rem 0.5rem;
+  }
+}
+
+/* Dark mode support */
+html[data-theme='dark'] .techRequirements {
+  background-color: #0d1117;
+}
+
+html[data-theme='dark'] .requirementCategory {
+  background: #1e293b;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+
+html[data-theme='dark'] .sectionDescription {
+  color: #adbac7;
+}
+
+html[data-theme='dark'] .reqName {
+  color: #e6edf3;
+}
+
+html[data-theme='dark'] .reqJustification {
+  color: #94a3b8;
+}
+
+html[data-theme='dark'] .installationGuide {
+  background: linear-gradient(135deg, #161b22 0%, #1a2332 100%);
+  color: #e6edf3;
+}
+
+html[data-theme='dark'] .installStep {
+  background: #2d3748;
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .stepTitle {
+  color: #e6edf3;
+}
+
+html[data-theme='dark'] .stepDescription {
+  color: #cbd5e1;
+}
+
+html[data-theme='dark'] .compatibilityTable tr:nth-child(even) {
+  background-color: #1a2332;
+}
+
+html[data-theme='dark'] .compatibilityTable tr:hover {
+  background-color: #2d3748;
+}
+
+html[data-theme='dark'] .compatibilityTable th {
+  background-color: #1a237e;
+}

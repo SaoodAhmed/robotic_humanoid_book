@@ -1,0 +1,98 @@
+.simulationExercise {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border-radius: var(--ifm-global-radius);
+  border-left: 4px solid var(--ifm-color-primary);
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.simulationExercise.difficulty-beginner {
+  border-left-color: #2ecc71;
+}
+
+.simulationExercise.difficulty-intermediate {
+  border-left-color: #f39c12;
+}
+
+.simulationExercise.difficulty-advanced {
+  border-left-color: #e74c3c;
+}
+
+.exerciseHeader {
+  margin-bottom: 1rem;
+}
+
+.exerciseTitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.exerciseMeta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.difficultyBadge {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--ifm-global-radius);
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.badge-beginner {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.badge-intermediate {
+  background-color: #f39c12;
+  color: white;
+}
+
+.badge-advanced {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.durationBadge {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--ifm-global-radius);
+  background-color: var(--ifm-color-emphasis-200);
+  font-size: 0.8rem;
+}
+
+.exerciseObjectives {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-global-radius);
+}
+
+.exerciseObjectives h4 {
+  margin-top: 0;
+  color: var(--ifm-color-primary);
+}
+
+.exerciseObjectives ul {
+  margin-bottom: 0;
+}
+
+.exerciseContent {
+  margin-top: 1rem;
+}
+
+/* Responsive design */
+@media (max-width: 996px) {
+  .exerciseMeta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .exerciseTitle {
+    font-size: 1.3rem;
+  }
+}

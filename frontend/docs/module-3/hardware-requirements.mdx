@@ -1,0 +1,206 @@
+---
+title: "Hardware Requirements for Isaac Sim Workstations"
+sidebar_position: 1
+---
+
+# Hardware Requirements for Isaac Sim Workstations
+
+## Overview
+
+This document outlines the hardware requirements for workstations capable of running NVIDIA Isaac Sim effectively. Isaac Sim is a computationally intensive application that requires high-end GPUs, substantial memory, and specific system configurations to achieve optimal performance for photorealistic simulation and synthetic data generation.
+
+## Minimum Hardware Requirements
+
+### GPU Requirements
+- **Minimum**: NVIDIA RTX 2060 with 8GB VRAM
+- **Recommended**: NVIDIA RTX 3080 or RTX 4080 with 12GB+ VRAM
+- **Preferred**: NVIDIA RTX 4090 or RTX 6000 Ada with 24GB+ VRAM
+- **Compute Capability**: CUDA Compute Capability 6.0 or higher
+- **Driver**: NVIDIA Game Ready or Studio Driver (latest version recommended)
+
+### CPU Requirements
+- **Minimum**: Intel i7-9700K or AMD Ryzen 7 3700X
+- **Recommended**: Intel i9-12900K or AMD Ryzen 9 5900X
+- **Preferred**: Intel i9-13900K or AMD Ryzen 9 7950X
+- **Cores**: Minimum 8 cores, Recommended 16+ cores
+- **Architecture**: x86_64, 64-bit support required
+
+### Memory Requirements
+- **Minimum**: 32GB DDR4-3200
+- **Recommended**: 64GB DDR4-3600 or DDR5-4800
+- **Preferred**: 128GB DDR5-5200 for complex scenes
+- **Configuration**: Dual or quad-channel for optimal bandwidth
+
+### Storage Requirements
+- **Minimum**: 500GB NVMe SSD
+- **Recommended**: 1TB+ NVMe SSD (PCIe Gen 4.0 x4)
+- **Capacity**: 2TB+ for large scene libraries and datasets
+- **Speed**: Sequential read >2000 MB/s, write >1500 MB/s
+
+### System Requirements
+- **OS**: Ubuntu 22.04 LTS (64-bit) or Windows 10/11 Pro
+- **Power Supply**: 850W+ Gold rated or higher
+- **Cooling**: Adequate CPU and GPU cooling solution
+- **Form Factor**: ATX or E-ATX for proper airflow
+
+## Recommended Workstation Configurations
+
+### Academic Lab Configuration (Cost-Effective)
+- **CPU**: AMD Ryzen 9 5900X (12-core, 24-thread)
+- **GPU**: NVIDIA RTX 4080 (16GB VRAM)
+- **RAM**: 64GB DDR4-3600 CL16
+- **Storage**: 1TB NVMe SSD + 2TB HDD for assets
+- **PSU**: 850W 80+ Gold
+- **Motherboard**: AM5 socket with PCIe 4.0 support
+- **Estimated Cost**: $2,800-3,200
+
+### Professional Configuration (Performance)
+- **CPU**: Intel i9-13900K (24-core, 32-thread)
+- **GPU**: NVIDIA RTX 4090 (24GB VRAM)
+- **RAM**: 128GB DDR5-5200 CL32
+- **Storage**: 2TB NVMe SSD (Gen 4.0) + 4TB NVMe for datasets
+- **PSU**: 1000W 80+ Platinum
+- **Cooling**: AIO liquid cooling for CPU + case fans
+- **Estimated Cost**: $4,500-5,500
+
+### Research Lab Configuration (Maximum Performance)
+- **CPU**: AMD Threadripper PRO 5975WX (32-core, 64-thread)
+- **GPU**: NVIDIA RTX 6000 Ada (48GB VRAM) or dual RTX 4090
+- **RAM**: 256GB DDR5-5600 ECC
+- **Storage**: 4TB+ NVMe RAID 0 + 8TB NAS for asset sharing
+- **PSU**: 1200W+ 80+ Titanium
+- **Motherboard**: sWRX8 with multiple PCIe slots
+- **Estimated Cost**: $8,000-12,000
+
+## GPU Performance Considerations
+
+### VRAM Requirements by Use Case
+- **Basic scenes**: 8GB minimum, 12GB recommended
+- **Complex scenes with high-poly models**: 16GB minimum, 24GB recommended
+- **Multi-sensor simulation (50+ sensors)**: 24GB minimum, 48GB preferred
+- **Real-time rendering with high fidelity**: 24GB+ recommended
+
+### Performance Benchmarks
+- **30 FPS Target**: Basic scenes with RTX 3080+ (12GB+ VRAM)
+- **10 FPS Target**: Complex scenes with RTX 4080+ (16GB+ VRAM)
+- **Interactive editing**: RTX 4090+ recommended for complex scenes
+- **Multi-user sessions**: VRAM requirements scale linearly with users
+
+## Network and Connectivity
+
+### Network Requirements
+- **Minimum**: Gigabit Ethernet (1 Gbps)
+- **Recommended**: 10 Gigabit Ethernet (10 Gbps) for multi-user labs
+- **Latency**: &lt;1ms for real-time collaboration
+- **Bandwidth**: 1 Gbps+ for asset streaming
+
+### Display Requirements
+- **Resolution**: 4K (3840x2160) recommended for scene editing
+- **Refresh Rate**: 60Hz minimum, 120Hz+ for better responsiveness
+- **Color Space**: Display P3 or Adobe RGB for accurate color representation
+- **Multiple Displays**: 2+ monitors recommended for workflow efficiency
+
+## Software Prerequisites
+
+### Operating System Requirements
+- **Ubuntu 22.04 LTS** (Recommended for robotics development)
+  - Kernel: 5.15+ LTS
+  - Graphics drivers: NVIDIA proprietary driver 535+
+  - CUDA: 12.0+ (Isaac Sim 2023.1+ requirement)
+  - Docker: 20.10+ for containerized workflows
+
+### Additional Software Requirements
+- **Docker**: Required for Isaac Sim container deployment
+- **Python**: 3.8-3.11 for Isaac ROS integration
+- **ROS 2**: Humble Hawksbill for robotics integration
+- **Git**: Version control for scene and asset management
+- **SSH**: For remote development and multi-user access
+
+## Power and Environmental Considerations
+
+### Power Consumption
+- **RTX 4080**: ~320W typical, 350W peak
+- **RTX 4090**: ~450W typical, 500W peak
+- **RTX 6000 Ada**: ~500W+ typical
+- **Total system**: 800W-1200W for high-end configurations
+
+### Cooling Requirements
+- **Room temperature**: 18-22°C (65-72°F) optimal
+- **Airflow**: Positive pressure with filtered intake
+- **Humidity**: 40-60% RH to prevent static discharge
+- **Acoustic**: &lt;45 dB for shared lab environments
+
+## Multi-User Lab Considerations
+
+### Workstation Sharing
+- **VRAM allocation**: Plan for 4-8GB per concurrent user
+- **CPU allocation**: 4-8 cores per concurrent user
+- **Storage I/O**: High-speed storage essential for multi-user access
+- **Network**: Dedicated network for simulation traffic
+
+### Remote Access
+- **VPN**: Secure access for remote development
+- **VNC/Remote Desktop**: High-bandwidth solutions required
+- **Cloud Integration**: Consider cloud-based alternatives for peak loads
+- **Asset Management**: Centralized asset storage for collaboration
+
+## Troubleshooting Common Hardware Issues
+
+### GPU Performance Issues
+- **Symptoms**: Low FPS, stuttering, GPU memory errors
+- **Solutions**:
+  - Update to latest NVIDIA drivers
+  - Verify adequate power supply
+  - Check GPU thermal throttling
+  - Reduce scene complexity or resolution
+
+### Memory Issues
+- **Symptoms**: Crashes, slow loading, asset streaming failures
+- **Solutions**:
+  - Increase system RAM to recommended levels
+  - Close unnecessary applications
+  - Optimize scene asset resolution
+  - Use streaming levels of detail
+
+### Storage Performance Issues
+- **Symptoms**: Slow scene loading, asset streaming delays
+- **Solutions**:
+  - Upgrade to NVMe SSD storage
+  - Verify storage bandwidth
+  - Organize assets for optimal access patterns
+  - Use compression for large asset files
+
+## Budget Planning Guidelines
+
+### Cost Ranges
+- **Entry Level**: $2,000-3,000 per workstation
+- **Mid Range**: $4,000-6,000 per workstation
+- **High End**: $8,000+ per workstation
+
+### Total Lab Costs (10 Workstations)
+- **Budget Lab**: $25,000-35,000
+- **Performance Lab**: $45,000-65,000
+- **Research Lab**: $85,000-120,000
+
+### Additional Costs to Consider
+- **Networking infrastructure**: $5,000-15,000
+- **Asset storage (NAS)**: $10,000-30,000
+- **Cooling and power**: $8,000-20,000
+- **Furniture and ergonomics**: $5,000-10,000
+- **Maintenance and support**: 15-20% of hardware cost annually
+
+## Future-Proofing Considerations
+
+### Upgrade Path Planning
+- **GPU**: Plan for 3-4 year refresh cycles
+- **VRAM**: Consider 2x requirement for future scene complexity
+- **CPU**: Prioritize core count over frequency for multi-threaded workloads
+- **Storage**: Plan for 3x growth in asset sizes over 3 years
+
+### Emerging Technologies
+- **DLSS/FSR**: Hardware-accelerated upscaling support
+- **Ray tracing**: Essential for realistic lighting simulation
+- **AI acceleration**: Tensor cores for synthetic data generation
+- **8K displays**: For ultra-high-resolution scene editing
+
+This hardware specification provides the foundation for successful Isaac Sim deployment in academic and research environments. The key is to balance performance requirements with budget constraints while planning for future growth and technological advancement.

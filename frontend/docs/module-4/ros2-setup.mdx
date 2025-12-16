@@ -1,0 +1,50 @@
+---
+sidebar_position: 1
+---
+
+# ROS 2 Setup for VLA System
+
+## Overview
+This document outlines the ROS 2 workspace configuration for the Vision-Language-Action (VLA) system. The system integrates with ROS 2 Humble Hawksbill to enable communication between speech recognition, LLM processing, and robot simulation components.
+
+## Package Structure
+```
+vla_module4/
+├── CMakeLists.txt
+├── package.xml
+├── src/
+│   └── vla_node.py
+├── msg/
+│   ├── VLAAction.msg
+│   └── VLAState.msg
+├── srv/
+│   └── GeneratePlan.srv
+├── config/
+│   └── vla_config.yaml
+└── launch/
+    └── vla_system.launch.py
+```
+
+## Dependencies
+The VLA system depends on several ROS 2 packages:
+- `std_msgs`: Standard message types
+- `actionlib_msgs`: Action definition messages
+- `nav2_msgs`: Navigation action messages
+- `sensor_msgs`: Sensor data messages
+- `geometry_msgs`: Geometric primitives
+
+## Configuration
+The system uses the configuration file located at `frontend/static/module-4-assets/configs/config.json` to define ROS 2 namespace and action server endpoints.
+
+## Launch
+To launch the VLA system:
+```bash
+ros2 launch vla_module4 vla_system.launch.py
+```
+
+## Topics and Services
+- `/vla/voice_command`: Voice command input (std_msgs/String)
+- `/vla/action_plan`: Action plan execution (actionlib_msgs/GoalID)
+- `/vla/state`: VLA system state (custom VLAState message)
+- `/vla/generate_plan`: Action plan generation service
+- `/vla/get_state`: State query service

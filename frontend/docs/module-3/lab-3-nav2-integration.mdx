@@ -1,0 +1,1737 @@
+---
+title: "Lab 3: Nav2 Integration and Bipedal Path Planning"
+sidebar_position: 8
+---
+
+# Lab 3: Nav2 Integration and Bipedal Path Planning
+
+## Overview
+
+This lab focuses on integrating Isaac ROS VSLAM outputs with the Nav2 navigation stack for bipedal humanoid path planning. Students will learn to configure Nav2 for the unique kinematic constraints of bipedal robots and validate the complete perception-to-navigation pipeline.
+
+## Learning Objectives
+
+After completing this lab, students will be able to:
+- Integrate Isaac ROS VSLAM outputs with Nav2 path planning
+- Configure Nav2 parameters specifically for bipedal humanoid kinematics
+- Validate navigation performance in simulated environments
+- Troubleshoot common integration issues
+- Evaluate path planning effectiveness for bipedal locomotion
+
+## Prerequisites
+
+Before starting this lab, ensure you have:
+- Completed Lab 1: Isaac Sim Scene Creation & Synthetic Data Export
+- Completed Lab 2: Isaac ROS VSLAM Pipeline
+- Isaac ROS and Nav2 packages properly installed
+- Isaac Sim scene with humanoid robot configured
+- Working VSLAM pipeline from Lab 2
+- Understanding of ROS 2 navigation concepts
+
+## Equipment and Software Requirements
+
+- Workstation with RTX GPU (RTX 3080 or better recommended)
+- Ubuntu 22.04 LTS
+- Isaac Sim 2023.1+
+- Isaac ROS packages
+- Nav2 packages
+- CUDA 12.0+
+- VRAM: Minimum 16GB (24GB+ recommended)
+
+## Lab Duration
+
+Estimated completion time: 3-4 hours
+
+## Exercise 1: Isaac ROS to Nav2 Data Bridge (T076)
+
+### Step 1: Verify Isaac ROS and Nav2 Integration Points
+
+1. First, ensure both Isaac ROS VSLAM and Nav2 systems are operational:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Check Isaac ROS VSLAM topics
+ros2 topic list | grep -E "(vslam|visual_slam|pose)"
+
+# Check Nav2 topics
+ros2 topic list | grep -E "(nav|costmap|planner|controller)"
+```
+
+2. Verify that both systems are using the same coordinate frames:
+```bash
+# Check TF tree
+ros2 run tf2_tools view_frames
+
+# Check available transforms
+ros2 run tf2_ros tf2_echo map odom
+ros2 run tf2_ros tf2_echo base_link camera_link
+```
+
+### Step 2: Create Isaac ROS to Nav2 Bridge Configuration
+
+1. Create a bridge configuration file that maps Isaac ROS outputs to Nav2 inputs:
+```yaml
+# ~/isaac_ros_ws/src/my_nav2_integration/config/isaac_ros_nav2_bridge.yaml
+bridge_configuration:
+  ros__parameters:
+    # Isaac ROS to Nav2 topic mappings
+    topic_mappings:
+      # Pose estimation mapping
+      - from: "/isaac_ros/visual_slam/tracking/pose_graph/poses"
+        to: "/amcl/initialpose"
+        type: "geometry_msgs/PoseWithCovarianceStamped"
+
+      - from: "/isaac_ros/visual_slam/visual_slam/graph"
+        to: "/amcl/pose"
+        type: "geometry_msgs/PoseWithCovarianceStamped"
+
+      # Occupancy grid mapping
+      - from: "/isaac_ros/occupancy_grid"
+        to: "/global_costmap/costmap"
+        type: "nav_msgs/OccupancyGrid"
+
+      # Sensor data mapping
+      - from: "/isaac_ros/depth/image_rect_raw"
+        to: "/camera/depth/image_rect_raw"
+        type: "sensor_msgs/Image"
+
+      - from: "/isaac_ros/lidar_scan"
+        to: "/scan"
+        type: "sensor_msgs/LaserScan"
+
+    # TF frame mappings
+    tf_mappings:
+      # Isaac Sim to ROS coordinate frames
+      - from: "world"
+        to: "map"
+
+      - from: "humanoid/base_link"
+        to: "base_link"
+
+      - from: "humanoid/rgb_camera"
+        to: "rgb_camera_optical_frame"
+
+    # Timing parameters
+    timing:
+      # Buffer size for message synchronization
+      message_queue_size: 10
+      # Maximum delay allowed between Isaac ROS and Nav2 (seconds)
+      max_synchronization_delay: 0.5
+      # Frequency of bridge operations
+      bridge_frequency: 30.0
+
+    # Data conversion parameters
+    data_conversion:
+      # Pose covariance scaling for Isaac ROS to Nav2
+      pose_covariance_scale: 1.0
+      # Depth image scaling
+      depth_image_scaling: 1.0
+      # Laser scan filtering
+      laser_scan_filtering: true
+      # Minimum range for laser scan
+      laser_scan_min_range: 0.1
+      # Maximum range for laser scan
+      laser_scan_max_range: 10.0
+```
+
+### Step 3: Create Bridge Launch File
+
+1. Create a launch file that coordinates both Isaac ROS and Nav2:
+```xml
+<!-- ~/isaac_ros_ws/src/my_nav2_integration/launch/isaac_ros_nav2_bridge.launch.xml -->
+<launch>
+  <!-- Arguments -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="robot_namespace" default="humanoid_robot"/>
+  <arg name="isaac_vslam_config" default="$(find-pkg-share my_nav2_integration)/config/isaac_vslam_params.yaml"/>
+  <arg name="nav2_config" default="$(find-pkg-share my_nav2_integration)/config/nav2_params_humanoid.yaml"/>
+  <arg name="bridge_config" default="$(find-pkg-share my_nav2_integration)/config/isaac_ros_nav2_bridge.yaml"/>
+
+  <!-- Isaac ROS Visual SLAM Node -->
+  <node pkg="isaac_ros_visual_slam" exec="visual_slam_node" name="visual_slam" namespace="$(var robot_namespace)" output="screen">
+    <param from="$(var isaac_vslam_config)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+
+    <!-- Remappings for Isaac Sim integration -->
+    <remap from="visual_slam/camera_optical/camera_info" to="/rgb_camera/camera_info"/>
+    <remap from="visual_slam/camera_optical/image" to="/rgb_camera/image_raw"/>
+    <remap from="visual_slam/imu" to="/imu/data" if="$(var enable_imu_fusion)"/>
+
+    <!-- Output remappings -->
+    <remap from="visual_slam/tracking/pose_graph/poses" to="/$(var robot_namespace)/vslam/poses"/>
+    <remap from="visual_slam/visual_slam/graph" to="/$(var robot_namespace)/vslam/graph"/>
+    <remap from="visual_slam/visual_slam/imu_graph" to="/$(var robot_namespace)/vslam/imu_graph"/>
+  </node>
+
+  <!-- Isaac ROS Occupancy Grid Node -->
+  <node pkg="isaac_ros_occupancy_grid" exec="occupancy_grid_node" name="occupancy_grid" namespace="$(var robot_namespace)" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="resolution" value="0.05"/>
+    <param name="occupancy_grid_topic" value="/$(var robot_namespace)/occupancy_grid"/>
+
+    <remap from="pointcloud" to="/depth_camera/points"/>
+    <remap from="camera_info" to="/depth_camera/camera_info"/>
+  </node>
+
+  <!-- Nav2 Stack -->
+  <include file="$(find-pkg-share nav2_bringup)/launch/nav2_launch.py">
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="params_file" value="$(var nav2_config)"/>
+    <arg name="autostart" value="true"/>
+    <arg name="map" value=""/>  <!-- Will be loaded separately -->
+  </include>
+
+  <!-- Isaac ROS to Nav2 Bridge Node -->
+  <node pkg="my_nav2_integration" exec="isaac_ros_nav2_bridge_node" name="isaac_ros_nav2_bridge" namespace="$(var robot_namespace)" output="screen">
+    <param from="$(var bridge_config)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- Static TF publishers for humanoid-specific transforms -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="base_to_camera_tf" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="x" value="0.15"/>
+    <param name="y" value="0.0"/>
+    <param name="z" value="0.7"/>  <!-- Head height for humanoid -->
+    <param name="yaw" value="0.0"/>
+    <param name="pitch" value="0.0"/>
+    <param name="roll" value="0.0"/>
+    <param name="frame_id" value="base_link"/>
+    <param name="child_frame_id" value="camera_link"/>
+  </node>
+
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="base_to_imu_tf" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="x" value="0.0"/>
+    <param name="y" value="0.0"/>
+    <param name="z" value="0.5"/>  <!-- Torso-mounted IMU -->
+    <param name="yaw" value="0.0"/>
+    <param name="pitch" value="0.0"/>
+    <param name="roll" value="0.0"/>
+    <param name="frame_id" value="base_link"/>
+    <param name="child_frame_id" value="imu_link"/>
+  </node>
+</launch>
+```
+
+### Step 4: Create Bridge Node Implementation
+
+1. Create the bridge node that handles data conversion and synchronization:
+```python
+#!/usr/bin/env python3
+# Isaac ROS to Nav2 bridge node
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
+from nav_msgs.msg import OccupancyGrid, Odometry
+from sensor_msgs.msg import Image, LaserScan
+from tf2_ros import TransformBroadcaster
+from tf2_geometry_msgs import do_transform_pose
+import tf2_ros
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+
+class IsaacRosNav2Bridge(Node):
+    def __init__(self):
+        super().__init__('isaac_ros_nav2_bridge')
+
+        # Parameters
+        self.declare_parameter('max_synchronization_delay', 0.5)
+        self.declare_parameter('message_queue_size', 10)
+        self.declare_parameter('pose_covariance_scale', 1.0)
+
+        # Store Isaac ROS data
+        self.isaac_pose = None
+        self.isaac_grid = None
+        self.isaac_depth = None
+
+        # Timers for synchronization
+        self.sync_timer = self.create_timer(0.1, self.synchronize_data)
+
+        # Subscribers for Isaac ROS data
+        self.isaac_pose_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/humanoid_robot/vslam/poses',
+            self.isaac_pose_callback,
+            10
+        )
+
+        self.isaac_grid_sub = self.create_subscription(
+            OccupancyGrid,
+            '/humanoid_robot/occupancy_grid',
+            self.isaac_grid_callback,
+            10
+        )
+
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            '/odom',
+            self.odom_callback,
+            10
+        )
+
+        # Publishers for Nav2
+        self.amcl_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped,
+            '/initialpose',
+            10
+        )
+
+        self.global_costmap_pub = self.create_publisher(
+            OccupancyGrid,
+            '/global_costmap/costmap',
+            10
+        )
+
+        # TF buffer and broadcaster
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+        # Timing for synchronization
+        self.last_sync_time = self.get_clock().now()
+
+        self.get_logger().info("Isaac ROS to Nav2 Bridge initialized")
+
+    def isaac_pose_callback(self, msg):
+        """Handle Isaac ROS pose estimation"""
+        self.isaac_pose = msg
+        self.get_logger().debug(f"Received Isaac ROS pose: ({msg.pose.pose.position.x:.2f}, {msg.pose.pose.position.y:.2f})")
+
+        # Convert Isaac ROS pose to Nav2 format and publish
+        nav2_pose = self.convert_pose_for_nav2(msg)
+        if nav2_pose:
+            self.amcl_pose_pub.publish(nav2_pose)
+
+    def isaac_grid_callback(self, msg):
+        """Handle Isaac ROS occupancy grid"""
+        self.isaac_grid = msg
+        self.get_logger().debug(f"Received Isaac ROS grid: {msg.info.width}x{msg.info.height}")
+
+        # Convert Isaac ROS grid to Nav2 format and publish
+        nav2_grid = self.convert_grid_for_nav2(msg)
+        if nav2_grid:
+            self.global_costmap_pub.publish(nav2_grid)
+
+    def odom_callback(self, msg):
+        """Handle odometry data for synchronization"""
+        # Use odometry for timing synchronization
+        pass
+
+    def convert_pose_for_nav2(self, isaac_pose_msg):
+        """Convert Isaac ROS pose to Nav2-compatible format"""
+        try:
+            # Create Nav2-compatible pose message
+            nav2_pose = PoseWithCovarianceStamped()
+            nav2_pose.header = isaac_pose_msg.header
+            nav2_pose.header.frame_id = 'map'  # Nav2 expects map frame
+
+            # Copy pose with potential frame transformation
+            nav2_pose.pose = isaac_pose_msg.pose
+
+            # Scale covariance if needed
+            scale = self.get_parameter('pose_covariance_scale').value
+            for i in range(len(nav2_pose.pose.covariance)):
+                nav2_pose.pose.covariance[i] *= scale
+
+            return nav2_pose
+        except Exception as e:
+            self.get_logger().error(f"Error converting pose: {str(e)}")
+            return None
+
+    def convert_grid_for_nav2(self, isaac_grid_msg):
+        """Convert Isaac ROS grid to Nav2-compatible format"""
+        try:
+            # Create Nav2-compatible occupancy grid
+            nav2_grid = OccupancyGrid()
+            nav2_grid.header = isaac_grid_msg.header
+            nav2_grid.header.frame_id = 'map'  # Nav2 expects map frame
+
+            nav2_grid.info = isaac_grid_msg.info
+            nav2_grid.data = isaac_grid_msg.data
+
+            return nav2_grid
+        except Exception as e:
+            self.get_logger().error(f"Error converting grid: {str(e)}")
+            return None
+
+    def synchronize_data(self):
+        """Synchronize Isaac ROS and Nav2 data streams"""
+        current_time = self.get_clock().now()
+        max_delay = self.get_parameter('max_synchronization_delay').value
+
+        # Check if Isaac ROS data is recent enough
+        if self.isaac_pose is not None:
+            pose_age = (current_time - rclpy.time.Time.from_msg(self.isaac_pose.header.stamp)).nanoseconds / 1e9
+            if pose_age > max_delay:
+                self.isaac_pose = None  # Invalidate old data
+                self.get_logger().warn("Isaac ROS pose data is too old, invalidating")
+
+        if self.isaac_grid is not None:
+            grid_age = (current_time - rclpy.time.Time.from_msg(self.isaac_grid.header.stamp)).nanoseconds / 1e9
+            if grid_age > max_delay:
+                self.isaac_grid = None  # Invalidate old data
+                self.get_logger().warn("Isaac ROS grid data is too old, invalidating")
+
+        # Log synchronization status
+        if self.isaac_pose is not None and self.isaac_grid is not None:
+            self.get_logger().info("Isaac ROS and Nav2 data synchronized successfully")
+        elif self.isaac_pose is not None:
+            self.get_logger().info("Isaac ROS pose available, waiting for grid")
+        elif self.isaac_grid is not None:
+            self.get_logger().info("Isaac ROS grid available, waiting for pose")
+        else:
+            self.get_logger().info("Waiting for Isaac ROS data...")
+
+    def validate_integration(self):
+        """Validate that Isaac ROS and Nav2 are properly integrated"""
+        # Check if both systems are publishing data
+        isaac_active = self.isaac_pose is not None or self.isaac_grid is not None
+        # In a real implementation, we would check Nav2 status as well
+
+        if isaac_active:
+            self.get_logger().info("Isaac ROS to Nav2 integration validated successfully")
+            return True
+        else:
+            self.get_logger().warn("Isaac ROS to Nav2 integration validation failed - no data received")
+            return False
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    bridge = IsaacRosNav2Bridge()
+
+    # Validate integration periodically
+    validation_timer = bridge.create_timer(5.0, bridge.validate_integration)
+
+    try:
+        rclpy.spin(bridge)
+    except KeyboardInterrupt:
+        bridge.get_logger().info("Bridge interrupted by user")
+    finally:
+        bridge.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+## Exercise 2: Bipedal Path Planning Configuration (T077)
+
+### Step 1: Configure Nav2 for Humanoid Kinematics
+
+1. Create humanoid-specific Nav2 configuration:
+```yaml
+# ~/isaac_ros_ws/src/my_nav2_config/config/humanoid_nav2_params.yaml
+amcl:
+  ros__parameters:
+    use_sim_time: True
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    max_beams: 60
+    max_particles: 3000  # Increased for better humanoid localization
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_enabled: true
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.2
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: True
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    enable_groot_monitoring: True
+    groot_zmq_publisher_port: 1666
+    groot_zmq_server_port: 1667
+    # Specialized Behavior Tree for bipedal navigation
+    default_nav_through_poses_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery_humanoid.xml"
+    default_navigate_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery_humanoid.xml"
+    plugin_lib_names:
+    - nav2_compute_path_to_pose_action_bt_node
+    - nav2_compute_path_through_poses_action_bt_node
+    - nav2_smooth_path_action_bt_node
+    - nav2_follow_path_action_bt_node
+    - nav2_spin_action_bt_node
+    - nav2_wait_action_bt_node
+    - nav2_assisted_teleop_action_bt_node
+    - nav2_back_up_action_bt_node
+    - nav2_drive_on_heading_bt_node
+    - nav2_clear_costmap_service_bt_node
+    - nav2_is_stuck_condition_bt_node
+    - nav2_goal_reached_condition_bt_node
+    - nav2_goal_updated_condition_bt_node
+    - nav2_globally_updated_goal_condition_bt_node
+    - nav2_is_path_valid_condition_bt_node
+    - nav2_initial_pose_received_condition_bt_node
+    - nav2_reinitialize_global_localization_service_bt_node
+    - nav2_rate_controller_bt_node
+    - nav2_cross_doorway_condition_bt_node
+    - nav2_is_battery_low_condition_bt_node
+    - nav2_navigate_through_poses_action_bt_node
+    - nav2_navigate_to_pose_action_bt_node
+    - nav2_remove_passed_goals_action_bt_node
+    - nav2_planner_selector_bt_node
+    - nav2_controller_selector_bt_node
+    - nav2_goal_checker_selector_bt_node
+    - nav2_controller_cancel_bt_node
+    - nav2_path_longer_on_approach_bt_node
+    - nav2_wait_cancel_bt_node
+    - nav2_spin_cancel_bt_node
+    - nav2_back_up_cancel_bt_node
+    - nav2_assisted_teleop_cancel_bt_node
+    - nav2_drive_on_heading_cancel_bt_node
+
+controller_server:
+  ros__parameters:
+    use_sim_time: True
+    controller_frequency: 10.0  # Lower for humanoid stability
+    min_x_velocity_threshold: 0.05  # Higher for humanoid movement
+    min_y_velocity_threshold: 0.1
+    min_theta_velocity_threshold: 0.05
+    # Humanoid-specific controller parameters
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugin: "goal_checker"
+    controller_plugins: ["FollowPath"]
+
+    # MPPI Controller tuned for humanoid stability
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 15  # Reduced for real-time humanoid constraints
+      model_dt: 0.1   # Increased for stability
+      batch_size: 500 # Reduced for computational efficiency
+      vx_std: 0.3
+      vy_std: 0.4
+      wz_std: 0.4
+      vx_max: 0.5  # Reduced for humanoid stability
+      vx_min: -0.2
+      vy_max: 0.3
+      vy_min: -0.3
+      wz_max: 0.5  # Reduced for turning stability
+      wz_min: -0.5
+      iteration_count: 1
+      prune_distance: 1.0  # Reduced for closer obstacle monitoring
+      transform_tolerance: 0.2
+      alpha: 0.0
+      beta: 0.8
+      gamma: 0.2
+      motion_model: "LeggedRobot"  # Custom motion model for bipedal
+      trajectory_visualization_plugin: "nav2_trajectory_utils::TrajectoryViz"
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.3  # Adjusted for humanoid step size
+      movement_time_allowance: 15.0
+
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.3  # Increased for humanoid precision limits
+      yaw_goal_tolerance: 0.3
+      stateful: True
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: True
+      rolling_window: true
+      width: 8  # Increased for humanoid step planning
+      height: 8
+      resolution: 0.05  # Fine resolution for foot placement
+      robot_radius: 0.4  # Larger for humanoid safety
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.5  # Increased for safety
+        inflation_radius: 0.7  # Increased for humanoid step planning
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.2
+        z_voxels: 10
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 4.0  # Extended for planning ahead
+          raytrace_min_range: 0.0
+          obstacle_max_range: 3.0  # Extended for humanoid awareness
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 0.5
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: True
+      robot_radius: 0.4
+      resolution: 0.05
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 4.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.0  # Increased for humanoid path planning
+
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 0.5  # Lower for complex humanoid planning
+    use_sim_time: True
+    planner_plugins: ["GridBased"]
+
+    GridBased:
+      # Use NavfnPlanner for better long-range path planning for bipedal robots
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.8  # Increased for humanoid flexibility
+      use_astar: true  # Use A* for better path quality
+      allow_unknown: true
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: True
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 0.05  # More precise smoothing for humanoid
+      max_its: 500
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "assisted_teleop", "wait"]
+
+    spin:
+      plugin: "nav2_behaviors::Spin"
+      spin_dist: 1.57  # Adjusted for humanoid turning
+
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+      backup_dist: 0.3  # Increased for humanoid stability
+      backup_speed: 0.05
+
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+      drive_on_heading_angle_tol: 0.5  # Reduced for better accuracy
+      drive_on_heading_forward_dist: 0.5
+      drive_on_heading_speed: 0.15  # Reduced for stability
+
+    wait:
+      plugin: "nav2_behaviors::Wait"
+      wait_duration: 1.0
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 200
+```
+
+### Step 2: Configure Humanoid-Specific Path Planning Parameters
+
+1. Create specialized parameters for humanoid path planning:
+```yaml
+# ~/isaac_ros_ws/src/my_nav2_config/config/humanoid_path_planning_params.yaml
+path_planning:
+  ros__parameters:
+    # Humanoid-specific path planning constraints
+    min_turn_radius: 0.4  # Minimum turning radius for bipedal movement
+    max_step_length: 0.3  # Maximum distance between footsteps
+    min_step_length: 0.1  # Minimum distance between footsteps
+    step_height: 0.05     # Height for step clearance
+    stance_width: 0.2     # Width between feet in stance phase
+
+    # Path smoothing parameters for humanoid gait
+    path_smoothing_enabled: true
+    path_smoothing_iterations: 100
+    path_smoothing_cost_power: 2
+    path_smoothing_cost_scaling_factor: 1.0
+    path_smoothing_threshold_to_proceed: 0.1
+
+    # Footstep planning parameters
+    footstep_planning_enabled: true
+    footstep_pattern: "alternating"
+    footstep_spacing: 0.25
+    footstep_orientation_tolerance: 0.2
+    footstep_position_tolerance: 0.05
+
+    # Balance constraints
+    balance_constraint_enabled: true
+    zmp_margin: 0.1  # Zero Moment Point safety margin
+    com_height: 0.7  # Center of mass height
+    com_deviation_threshold: 0.15
+
+    # Gait pattern parameters
+    gait_type: "walk"
+    gait_period: 1.0  # Time for one gait cycle
+    double_support_ratio: 0.2  # Ratio of double support phase
+    swing_height: 0.05  # Height of foot during swing phase
+
+    # Obstacle avoidance for bipedal movement
+    obstacle_avoidance_enabled: true
+    obstacle_buffer_distance: 0.3  # Extra buffer for humanoid safety
+    obstacle_inflation_radius: 0.5  # Increased for humanoid step planning
+    obstacle_clearance_threshold: 0.5
+
+    # Path optimality vs safety tradeoff
+    safety_factor: 0.8  # Weight for safety in path optimization
+    efficiency_factor: 0.2  # Weight for path efficiency
+    stability_factor: 0.9  # Weight for stability in planning
+```
+
+## Exercise 3: Isaac ROS-Nav2 Integration Validation (T078)
+
+### Step 1: Create Integration Validation Scripts
+
+1. Create a validation script to test Isaac ROS-Nav2 integration:
+```python
+#!/usr/bin/env python3
+# Isaac ROS-Nav2 integration validation
+
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from rclpy.qos import QoSProfile
+from geometry_msgs.msg import PoseStamped, Point
+from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Odometry, Path
+from sensor_msgs.msg import LaserScan
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+import time
+import math
+import numpy as np
+from scipy.spatial.distance import euclidean
+
+
+class IntegrationValidator(Node):
+    def __init__(self):
+        super().__init__('integration_validator')
+
+        # Action client for navigation
+        self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+
+        # Subscribers for monitoring
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            'odom',
+            self.odom_callback,
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        )
+
+        self.path_sub = self.create_subscription(
+            Path,
+            'local_plan',
+            self.path_callback,
+            10
+        )
+
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            10
+        )
+
+        # TF buffer for pose validation
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Navigation tracking
+        self.start_position = None
+        self.current_position = None
+        self.navigation_path = []
+        self.navigation_active = False
+        self.navigation_start_time = None
+
+        # Validation metrics
+        self.validation_metrics = {
+            'localization_accuracy': [],
+            'path_efficiency': [],
+            'obstacle_avoidance': [],
+            'navigation_success_rate': 0.0,
+            'average_completion_time': 0.0
+        }
+
+        self.get_logger().info("Integration validator initialized")
+
+    def odom_callback(self, msg):
+        """Track robot position for validation"""
+        self.current_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+
+        if self.navigation_active and self.start_position is not None:
+            # Calculate distance traveled
+            distance_traveled = math.sqrt(
+                (msg.pose.pose.position.x - self.start_position[0])**2 +
+                (msg.pose.pose.position.y - self.start_position[1])**2
+            )
+
+    def path_callback(self, msg):
+        """Track navigation path for validation"""
+        if self.navigation_active:
+            self.navigation_path = [(pose.pose.position.x, pose.pose.position.y) for pose in msg.poses]
+
+    def scan_callback(self, msg):
+        """Monitor obstacle detection"""
+        # Check for nearby obstacles
+        if self.navigation_active:
+            min_range = min(msg.ranges) if msg.ranges else float('inf')
+            if min_range < 0.5:  # Obstacle within 0.5m
+                self.get_logger().warn(f"Obstacle detected at {min_range:.2f}m")
+
+    def send_navigation_goal(self, goal_x, goal_y, goal_theta=0.0):
+        """Send navigation goal and start validation"""
+        self.get_logger().info(f"Sending navigation goal: ({goal_x}, {goal_y})")
+
+        # Record start position
+        try:
+            now = rclpy.time.Time()
+            trans = self.tf_buffer.lookup_transform('map', 'base_link', now, timeout=rclpy.duration.Duration(seconds=1.0))
+            self.start_position = (
+                trans.transform.translation.x,
+                trans.transform.translation.y
+            )
+        except TransformException as ex:
+            self.get_logger().error(f"Could not get initial transform: {ex}")
+            return False
+
+        # Create navigation goal
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+        goal_msg.pose.pose.position.x = float(goal_x)
+        goal_msg.pose.pose.position.y = float(goal_y)
+        goal_msg.pose.pose.position.z = 0.0
+
+        # Convert theta to quaternion
+        goal_msg.pose.pose.orientation.z = math.sin(goal_theta / 2.0)
+        goal_msg.pose.pose.orientation.w = math.cos(goal_theta / 2.0)
+
+        # Wait for server and send goal
+        if not self.nav_to_pose_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error("Navigation server not available")
+            return False
+
+        self.navigation_active = True
+        self.navigation_start_time = time.time()
+        self.navigation_path = []
+
+        goal_future = self.nav_to_pose_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        goal_future.add_done_callback(self.goal_response_callback)
+        return True
+
+    def feedback_callback(self, feedback_msg):
+        """Handle navigation feedback"""
+        feedback = feedback_msg.feedback
+        remaining = feedback.distance_remaining
+        self.get_logger().info(f"Navigation progress: {remaining:.2f}m remaining")
+
+    def goal_response_callback(self, future):
+        """Handle goal response"""
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            self.navigation_active = False
+            return
+
+        self.get_logger().info('Goal accepted')
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.result_callback)
+
+    def result_callback(self, future):
+        """Handle navigation result for validation"""
+        result = future.result().result
+        end_time = time.time()
+
+        if result.error_code == 0:  # SUCCESS
+            self.get_logger().info("Navigation completed successfully!")
+
+            # Calculate validation metrics
+            if self.start_position and self.current_position:
+                # Calculate straight-line distance
+                straight_line_distance = math.sqrt(
+                    (self.current_position[0] - self.start_position[0])**2 +
+                    (self.current_position[1] - self.start_position[1])**2
+                )
+
+                # Calculate path efficiency
+                if len(self.navigation_path) > 1:
+                    actual_path_length = 0.0
+                    prev_point = self.navigation_path[0]
+                    for point in self.navigation_path[1:]:
+                        actual_path_length += math.sqrt(
+                            (point[0] - prev_point[0])**2 + (point[1] - prev_point[1])**2
+                        )
+                        prev_point = point
+
+                    path_efficiency = straight_line_distance / actual_path_length if actual_path_length > 0 else 0.0
+                    self.validation_metrics['path_efficiency'].append(path_efficiency)
+
+                # Calculate navigation time
+                nav_time = end_time - self.navigation_start_time if self.navigation_start_time else 0.0
+                self.validation_metrics['average_completion_time'] = nav_time
+
+                self.get_logger().info(f"Straight-line distance: {straight_line_distance:.2f}m")
+                self.get_logger().info(f"Actual path length: {actual_path_length:.2f}m")
+                self.get_logger().info(f"Path efficiency: {path_efficiency:.2f}")
+                self.get_logger().info(f"Navigation time: {nav_time:.2f}s")
+
+        else:
+            self.get_logger().info(f"Navigation failed with error code: {result.error_code}")
+
+        self.navigation_active = False
+        self.start_position = None
+
+    def run_validation_tests(self):
+        """Run a series of validation tests"""
+        test_goals = [
+            (1.0, 1.0),
+            (2.0, 2.0),
+            (0.5, 2.5),
+            (3.0, 1.0)
+        ]
+
+        for i, (x, y) in enumerate(test_goals):
+            self.get_logger().info(f"Running validation test {i+1}/{len(test_goals)}: ({x}, {y})")
+
+            # Send navigation goal
+            success = self.send_navigation_goal(x, y)
+            if not success:
+                self.get_logger().error(f"Failed to send goal for test {i+1}")
+                continue
+
+            # Wait for completion (with timeout)
+            timeout = 60  # seconds
+            start_wait = time.time()
+            while self.navigation_active and (time.time() - start_wait < timeout):
+                time.sleep(0.1)
+
+            if self.navigation_active:
+                self.get_logger().warn(f"Navigation timed out for test {i+1}")
+
+            # Wait a bit between tests
+            time.sleep(2.0)
+
+        # Print final validation report
+        self.print_validation_report()
+
+    def print_validation_report(self):
+        """Print integration validation report"""
+        self.get_logger().info("--- Isaac ROS-Nav2 Integration Validation Report ---")
+
+        if self.validation_metrics['path_efficiency']:
+            avg_efficiency = sum(self.validation_metrics['path_efficiency']) / len(self.validation_metrics['path_efficiency'])
+            self.get_logger().info(f"Average Path Efficiency: {avg_efficiency:.2f}")
+        else:
+            self.get_logger().info("No path efficiency data collected")
+
+        if self.validation_metrics['average_completion_time']:
+            self.get_logger().info(f"Average Completion Time: {self.validation_metrics['average_completion_time']:.2f}s")
+        else:
+            self.get_logger().info("No completion time data collected")
+
+        self.get_logger().info("-----------------------------------------------")
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    validator = IntegrationValidator()
+
+    # Run validation tests
+    validator.run_validation_tests()
+
+    # Keep running to allow for manual testing
+    try:
+        rclpy.spin(validator)
+    except KeyboardInterrupt:
+        validator.get_logger().info("Validation interrupted by user")
+
+    validator.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+### Step 2: Execute Validation Tests
+
+1. Run the validation tests to verify integration:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Run the integration validation
+ros2 run my_nav2_integration integration_validator
+
+# Monitor the validation results
+ros2 topic echo /integration_validation/results
+```
+
+## Exercise 4: Bipedal Path Planning Demo (T079)
+
+### Step 1: Create Bipedal Navigation Demo
+
+1. Create a demonstration script that showcases bipedal path planning:
+```python
+#!/usr/bin/env python3
+# Bipedal humanoid navigation demonstration
+
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from geometry_msgs.msg import PoseStamped, Twist
+from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Path, Odometry
+from sensor_msgs.msg import LaserScan
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
+import time
+import math
+import numpy as np
+
+
+class BipedalNavigationDemo(Node):
+    def __init__(self):
+        super().__init__('bipedal_navigation_demo')
+
+        # Action client for navigation
+        self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+
+        # Publishers for visualization
+        self.path_marker_pub = self.create_publisher(Marker, 'visualization_marker', 10)
+        self.footstep_marker_pub = self.create_publisher(MarkerArray, 'footstep_markers', 10)
+
+        # Subscribers for monitoring
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            'odom',
+            self.odom_callback,
+            10
+        )
+
+        self.path_sub = self.create_subscription(
+            Path,
+            'local_plan',
+            self.path_callback,
+            10
+        )
+
+        # Navigation state
+        self.current_position = None
+        self.current_yaw = 0.0
+        self.current_path = []
+        self.demo_active = False
+
+        # Footstep planning parameters
+        self.step_length = 0.25
+        self.step_width = 0.2
+        self.step_height = 0.05
+
+        self.get_logger().info("Bipedal navigation demo initialized")
+
+    def odom_callback(self, msg):
+        """Track current robot position and orientation"""
+        self.current_position = (
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            msg.pose.pose.position.z
+        )
+
+        # Extract yaw from quaternion
+        quat = msg.pose.pose.orientation
+        self.current_yaw = math.atan2(2.0 * (quat.w * quat.z + quat.x * quat.y),
+                                      1.0 - 2.0 * (quat.y * quat.y + quat.z * quat.z))
+
+    def path_callback(self, msg):
+        """Store current path for footstep planning"""
+        self.current_path = [(pose.pose.position.x, pose.pose.position.y) for pose in msg.poses]
+
+    def plan_footsteps(self, path):
+        """Plan footsteps along the navigation path"""
+        footsteps = []
+        if len(path) < 2:
+            return footsteps
+
+        # Plan footsteps based on the path
+        for i in range(len(path) - 1):
+            start_pt = path[i]
+            end_pt = path[i + 1]
+
+            # Calculate direction vector
+            dx = end_pt[0] - start_pt[0]
+            dy = end_pt[1] - start_pt[1]
+            dist = math.sqrt(dx*dx + dy*dy)
+
+            # Place footsteps along the path segment
+            num_steps = int(dist / self.step_length) + 1
+            for j in range(num_steps):
+                t = j / num_steps if num_steps > 0 else 0
+                step_x = start_pt[0] + t * dx
+                step_y = start_pt[1] + t * dy
+
+                # Alternate feet (left/right)
+                if (i + j) % 2 == 0:
+                    foot_offset = self.step_width / 2
+                else:
+                    foot_offset = -self.step_width / 2
+
+                # Apply lateral offset for alternating feet
+                angle = math.atan2(dy, dx)
+                step_x += foot_offset * math.sin(angle)
+                step_y -= foot_offset * math.cos(angle)
+
+                footsteps.append((step_x, step_y, angle))
+
+        return footsteps
+
+    def visualize_footsteps(self, footsteps):
+        """Visualize planned footsteps in RViz"""
+        marker_array = MarkerArray()
+        for i, (x, y, theta) in enumerate(footsteps):
+            # Left foot marker
+            left_marker = Marker()
+            left_marker.header.frame_id = "map"
+            left_marker.header.stamp = self.get_clock().now().to_msg()
+            left_marker.ns = "footsteps"
+            left_marker.id = i * 2
+            left_marker.type = Marker.CUBE
+            left_marker.action = Marker.ADD
+
+            left_marker.pose.position.x = x + 0.05 * math.cos(theta)
+            left_marker.pose.position.y = y + 0.05 * math.sin(theta)
+            left_marker.pose.position.z = 0.01
+            left_marker.pose.orientation.w = 1.0
+
+            left_marker.scale.x = 0.12  # Foot length
+            left_marker.scale.y = 0.06  # Foot width
+            left_marker.scale.z = 0.02  # Foot height
+
+            left_marker.color.r = 0.0
+            left_marker.color.g = 0.0
+            left_marker.color.b = 1.0  # Blue for left foot
+            left_marker.color.a = 0.8
+
+            # Right foot marker
+            right_marker = Marker()
+            right_marker.header.frame_id = "map"
+            right_marker.header.stamp = self.get_clock().now().to_msg()
+            right_marker.ns = "footsteps"
+            right_marker.id = i * 2 + 1
+            right_marker.type = Marker.CUBE
+            right_marker.action = Marker.ADD
+
+            right_marker.pose.position.x = x - 0.05 * math.cos(theta)
+            right_marker.pose.position.y = y - 0.05 * math.sin(theta)
+            right_marker.pose.position.z = 0.01
+            right_marker.pose.orientation.w = 1.0
+
+            right_marker.scale.x = 0.12  # Foot length
+            right_marker.scale.y = 0.06  # Foot width
+            right_marker.scale.z = 0.02  # Foot height
+
+            right_marker.color.r = 1.0
+            right_marker.color.g = 0.0
+            right_marker.color.b = 0.0  # Red for right foot
+            right_marker.color.a = 0.8
+
+            marker_array.markers.extend([left_marker, right_marker])
+
+        self.footstep_marker_pub.publish(marker_array)
+
+    def execute_navigation_demo(self):
+        """Execute the bipedal navigation demonstration"""
+        self.get_logger().info("Starting bipedal navigation demonstration...")
+
+        # Define a sequence of goals for the demo
+        demo_goals = [
+            {"x": 1.0, "y": 1.0, "theta": 0.0},
+            {"x": 2.0, "y": 2.0, "theta": math.pi/2},
+            {"x": 1.5, "y": 3.0, "theta": math.pi},
+            {"x": 0.5, "y": 2.0, "theta": -math.pi/2}
+        ]
+
+        for i, goal in enumerate(demo_goals):
+            self.get_logger().info(f"Executing demo goal {i+1}/{len(demo_goals)}: ({goal['x']}, {goal['y']})")
+
+            # Send navigation goal
+            success = self.send_navigation_goal(goal['x'], goal['y'], goal['theta'])
+            if not success:
+                self.get_logger().error(f"Failed to send goal {i+1}")
+                continue
+
+            # Monitor navigation and visualize footsteps
+            start_time = time.time()
+            timeout = 120  # 2 minutes per goal
+            while self.demo_active and (time.time() - start_time < timeout):
+                # Plan and visualize footsteps based on current path
+                if self.current_path:
+                    footsteps = self.plan_footsteps(self.current_path)
+                    self.visualize_footsteps(footsteps)
+
+                time.sleep(0.1)  # Update visualization at 10 Hz
+
+            if self.demo_active:
+                self.get_logger().warn(f"Navigation timed out for goal {i+1}")
+
+            # Wait between goals
+            time.sleep(3.0)
+
+        self.get_logger().info("Bipedal navigation demonstration completed!")
+
+    def send_navigation_goal(self, goal_x, goal_y, goal_theta=0.0):
+        """Send navigation goal for demonstration"""
+        self.get_logger().info(f"Sending navigation goal: ({goal_x}, {goal_y}, {goal_theta})")
+
+        # Create goal message
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose.header.frame_id = 'map'
+        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
+        goal_msg.pose.pose.position.x = float(goal_x)
+        goal_msg.pose.pose.position.y = float(goal_y)
+        goal_msg.pose.pose.position.z = 0.0
+
+        # Convert theta to quaternion
+        goal_msg.pose.pose.orientation.z = math.sin(goal_theta / 2.0)
+        goal_msg.pose.pose.orientation.w = math.cos(goal_theta / 2.0)
+
+        # Wait for server and send goal
+        if not self.nav_to_pose_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error("Navigation server not available")
+            return False
+
+        self.demo_active = True
+
+        goal_future = self.nav_to_pose_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        goal_future.add_done_callback(self.goal_response_callback)
+        return True
+
+    def feedback_callback(self, feedback_msg):
+        """Handle navigation feedback"""
+        feedback = feedback_msg.feedback
+        remaining = feedback.distance_remaining
+        self.get_logger().info(f"Navigation progress: {remaining:.2f}m remaining")
+
+    def goal_response_callback(self, future):
+        """Handle goal response"""
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            self.demo_active = False
+            return
+
+        self.get_logger().info('Goal accepted')
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self.result_callback)
+
+    def result_callback(self, future):
+        """Handle navigation result"""
+        result = future.result().result
+
+        if result.error_code == 0:  # SUCCESS
+            self.get_logger().info("Navigation completed successfully!")
+        else:
+            self.get_logger().info(f"Navigation failed with error code: {result.error_code}")
+
+        self.demo_active = False
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    demo = BipedalNavigationDemo()
+
+    # Execute the demonstration
+    demo.execute_navigation_demo()
+
+    # Keep running for visualization
+    try:
+        rclpy.spin(demo)
+    except KeyboardInterrupt:
+        demo.get_logger().info("Demo interrupted by user")
+
+    demo.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+### Step 2: Execute the Bipedal Navigation Demo
+
+1. Run the bipedal navigation demonstration:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Launch the complete Isaac ROS-Nav2 system
+ros2 launch my_nav2_integration isaac_ros_nav2_bridge.launch.xml
+
+# In another terminal, run the bipedal navigation demo
+ros2 run my_nav2_integration bipedal_navigation_demo
+```
+
+## Exercise 5: Performance Analysis and Optimization (T080)
+
+### Step 1: Create Performance Analysis Tools
+
+1. Develop performance analysis tools for the integrated system:
+```python
+#!/usr/bin/env python3
+# Performance analysis for Isaac ROS-Nav2 integration
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Float32, Header
+from sensor_msgs.msg import Image, LaserScan
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.msg import Path, OccupancyGrid
+from nav2_msgs.action import NavigateToPose
+import time
+import statistics
+from collections import deque
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+class PerformanceAnalyzer(Node):
+    def __init__(self):
+        super().__init__('performance_analyzer')
+
+        # Subscribers for performance monitoring
+        self.isaac_pose_sub = self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/humanoid_robot/vslam/poses',
+            self.isaac_pose_callback,
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        )
+
+        self.nav_path_sub = self.create_subscription(
+            Path,
+            'local_plan',
+            self.nav_path_callback,
+            10
+        )
+
+        self.costmap_sub = self.create_subscription(
+            OccupancyGrid,
+            'global_costmap/costmap',
+            self.costmap_callback,
+            10
+        )
+
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            10
+        )
+
+        # Publishers for performance metrics
+        self.pose_freq_pub = self.create_publisher(Float32, 'performance/isaac_pose_frequency', 10)
+        self.path_freq_pub = self.create_publisher(Float32, 'performance/nav_path_frequency', 10)
+        self.cpu_usage_pub = self.create_publisher(Float32, 'performance/cpu_usage', 10)
+        self.memory_usage_pub = self.create_publisher(Float32, 'performance/memory_usage', 10)
+
+        # Performance tracking
+        self.isaac_pose_times = deque(maxlen=100)
+        self.nav_path_times = deque(maxlen=100)
+        self.costmap_times = deque(maxlen=100)
+        self.scan_times = deque(maxlen=100)
+
+        # Performance metrics
+        self.performance_metrics = {
+            'isaac_pose_frequency': [],
+            'nav_path_frequency': [],
+            'costmap_update_frequency': [],
+            'processing_latency': [],
+            'memory_usage': [],
+            'cpu_usage': []
+        }
+
+        # Timers for periodic analysis
+        self.analysis_timer = self.create_timer(1.0, self.perform_analysis)
+        self.reporting_timer = self.create_timer(10.0, self.report_performance)
+
+        self.get_logger().info("Performance analyzer initialized")
+
+    def isaac_pose_callback(self, msg):
+        """Track Isaac ROS pose estimation timing"""
+        current_time = time.time()
+        self.isaac_pose_times.append(current_time)
+
+        # Calculate frequency if we have enough data
+        if len(self.isaac_pose_times) > 1:
+            time_diffs = [self.isaac_pose_times[i] - self.isaac_pose_times[i-1]
+                         for i in range(1, len(self.isaac_pose_times))]
+            if time_diffs:
+                avg_period = sum(time_diffs) / len(time_diffs)
+                freq = 1.0 / avg_period if avg_period > 0 else 0.0
+
+                freq_msg = Float32()
+                freq_msg.data = freq
+                self.pose_freq_pub.publish(freq_msg)
+
+                self.performance_metrics['isaac_pose_frequency'].append(freq)
+
+    def nav_path_callback(self, msg):
+        """Track Nav2 path planning timing"""
+        current_time = time.time()
+        self.nav_path_times.append(current_time)
+
+        if len(self.nav_path_times) > 1:
+            time_diffs = [self.nav_path_times[i] - self.nav_path_times[i-1]
+                         for i in range(1, len(self.nav_path_times))]
+            if time_diffs:
+                avg_period = sum(time_diffs) / len(time_diffs)
+                freq = 1.0 / avg_period if avg_period > 0 else 0.0
+
+                freq_msg = Float32()
+                freq_msg.data = freq
+                self.path_freq_pub.publish(freq_msg)
+
+                self.performance_metrics['nav_path_frequency'].append(freq)
+
+    def costmap_callback(self, msg):
+        """Track costmap update timing"""
+        current_time = time.time()
+        self.costmap_times.append(current_time)
+
+    def scan_callback(self, msg):
+        """Track sensor data timing"""
+        current_time = time.time()
+        self.scan_times.append(current_time)
+
+    def perform_analysis(self):
+        """Perform periodic performance analysis"""
+        # Calculate current frequencies
+        if len(self.isaac_pose_times) > 1:
+            isaac_freq = self.calculate_frequency(self.isaac_pose_times)
+            self.get_logger().debug(f"Isaac ROS Pose Frequency: {isaac_freq:.2f} Hz")
+
+        if len(self.nav_path_times) > 1:
+            nav_freq = self.calculate_frequency(self.nav_path_times)
+            self.get_logger().debug(f"Nav2 Path Frequency: {nav_freq:.2f} Hz")
+
+        if len(self.costmap_times) > 1:
+            costmap_freq = self.calculate_frequency(self.costmap_times)
+            self.get_logger().debug(f"Costmap Update Frequency: {costmap_freq:.2f} Hz")
+
+        # Monitor system resources
+        cpu_usage = self.get_cpu_usage()
+        mem_usage = self.get_memory_usage()
+
+        cpu_msg = Float32()
+        cpu_msg.data = cpu_usage
+        self.cpu_usage_pub.publish(cpu_msg)
+
+        mem_msg = Float32()
+        mem_msg.data = mem_usage
+        self.memory_usage_pub.publish(mem_msg)
+
+        self.performance_metrics['cpu_usage'].append(cpu_usage)
+        self.performance_metrics['memory_usage'].append(mem_usage)
+
+    def calculate_frequency(self, time_list):
+        """Calculate frequency from a list of timestamps"""
+        if len(time_list) < 2:
+            return 0.0
+
+        time_diffs = [time_list[i] - time_list[i-1] for i in range(1, len(time_list))]
+        if not time_diffs:
+            return 0.0
+
+        avg_period = sum(time_diffs) / len(time_diffs)
+        return 1.0 / avg_period if avg_period > 0 else 0.0
+
+    def get_cpu_usage(self):
+        """Get current CPU usage"""
+        import psutil
+        return psutil.cpu_percent(interval=None)
+
+    def get_memory_usage(self):
+        """Get current memory usage"""
+        import psutil
+        memory = psutil.virtual_memory()
+        return memory.percent
+
+    def report_performance(self):
+        """Report current performance metrics"""
+        self.get_logger().info("--- Performance Analysis Report ---")
+
+        if self.performance_metrics['isaac_pose_frequency']:
+            avg_freq = statistics.mean(self.performance_metrics['isaac_pose_frequency'])
+            self.get_logger().info(f"Average Isaac ROS Pose Frequency: {avg_freq:.2f} Hz")
+
+        if self.performance_metrics['nav_path_frequency']:
+            avg_freq = statistics.mean(self.performance_metrics['nav_path_frequency'])
+            self.get_logger().info(f"Average Nav2 Path Frequency: {avg_freq:.2f} Hz")
+
+        if self.performance_metrics['cpu_usage']:
+            avg_cpu = statistics.mean(self.performance_metrics['cpu_usage'])
+            max_cpu = max(self.performance_metrics['cpu_usage'])
+            self.get_logger().info(f"Average CPU Usage: {avg_cpu:.2f}% (Max: {max_cpu:.2f}%)")
+
+        if self.performance_metrics['memory_usage']:
+            avg_mem = statistics.mean(self.performance_metrics['memory_usage'])
+            max_mem = max(self.performance_metrics['memory_usage'])
+            self.get_logger().info(f"Average Memory Usage: {avg_mem:.2f}% (Max: {max_mem:.2f}%)")
+
+        # Check for performance issues
+        self.check_performance_issues()
+
+        self.get_logger().info("-------------------------------")
+
+    def check_performance_issues(self):
+        """Check for performance bottlenecks"""
+        # Check if Isaac ROS pose frequency is too low
+        if (self.performance_metrics['isaac_pose_frequency'] and
+            statistics.mean(self.performance_metrics['isaac_pose_frequency']) < 5.0):
+            self.get_logger().warn("Isaac ROS pose frequency is low (< 5 Hz)")
+
+        # Check if Nav2 path frequency is too low
+        if (self.performance_metrics['nav_path_frequency'] and
+            statistics.mean(self.performance_metrics['nav_path_frequency']) < 1.0):
+            self.get_logger().warn("Nav2 path frequency is low (< 1 Hz)")
+
+        # Check if CPU usage is too high
+        if (self.performance_metrics['cpu_usage'] and
+            statistics.mean(self.performance_metrics['cpu_usage']) > 80.0):
+            self.get_logger().warn("CPU usage is high (> 80%)")
+
+        # Check if memory usage is too high
+        if (self.performance_metrics['memory_usage'] and
+            statistics.mean(self.performance_metrics['memory_usage']) > 85.0):
+            self.get_logger().warn("Memory usage is high (> 85%)")
+
+    def generate_performance_report(self, filename=None):
+        """Generate a detailed performance report"""
+        if filename is None:
+            from datetime import datetime
+            filename = f"/tmp/performance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+        with open(filename, 'w') as f:
+            f.write("Isaac ROS-Nav2 Integration Performance Report\n")
+            f.write("=" * 50 + "\n\n")
+
+            f.write("Performance Metrics:\n")
+            for metric, values in self.performance_metrics.items():
+                if values:
+                    f.write(f"  {metric}:\n")
+                    f.write(f"    Count: {len(values)}\n")
+                    f.write(f"    Average: {statistics.mean(values):.3f}\n")
+                    f.write(f"    Min: {min(values):.3f}\n")
+                    f.write(f"    Max: {max(values):.3f}\n")
+                    if len(values) > 1:
+                        f.write(f"    Std Dev: {statistics.stdev(values):.3f}\n")
+                    f.write("\n")
+
+        self.get_logger().info(f"Detailed performance report saved to {filename}")
+
+    def plot_performance_metrics(self):
+        """Plot performance metrics over time"""
+        try:
+            import matplotlib.pyplot as plt
+
+            fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+            fig.suptitle('Isaac ROS-Nav2 Performance Analysis')
+
+            # Plot Isaac ROS pose frequency
+            if len(self.performance_metrics['isaac_pose_frequency']) > 1:
+                axes[0, 0].plot(self.performance_metrics['isaac_pose_frequency'])
+                axes[0, 0].set_title('Isaac ROS Pose Frequency')
+                axes[0, 0].set_ylabel('Frequency (Hz)')
+
+            # Plot Nav2 path frequency
+            if len(self.performance_metrics['nav_path_frequency']) > 1:
+                axes[0, 1].plot(self.performance_metrics['nav_path_frequency'])
+                axes[0, 1].set_title('Nav2 Path Frequency')
+                axes[0, 1].set_ylabel('Frequency (Hz)')
+
+            # Plot CPU usage
+            if len(self.performance_metrics['cpu_usage']) > 1:
+                axes[1, 0].plot(self.performance_metrics['cpu_usage'])
+                axes[1, 0].set_title('CPU Usage')
+                axes[1, 0].set_ylabel('Percentage (%)')
+
+            # Plot memory usage
+            if len(self.performance_metrics['memory_usage']) > 1:
+                axes[1, 1].plot(self.performance_metrics['memory_usage'])
+                axes[1, 1].set_title('Memory Usage')
+                axes[1, 1].set_ylabel('Percentage (%)')
+
+            plt.tight_layout()
+
+            from datetime import datetime
+            plot_filename = f"/tmp/performance_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            plt.savefig(plot_filename)
+            self.get_logger().info(f"Performance plot saved to {plot_filename}")
+
+        except ImportError:
+            self.get_logger().warn("matplotlib not available, skipping plot generation")
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    analyzer = PerformanceAnalyzer()
+
+    # Run for a specific duration (e.g., 5 minutes) then generate report
+    import threading
+    import time
+
+    def run_for_duration():
+        time.sleep(300)  # Run for 5 minutes
+        analyzer.generate_performance_report()
+        analyzer.plot_performance_metrics()
+
+    analysis_thread = threading.Thread(target=run_for_duration)
+    analysis_thread.daemon = True
+    analysis_thread.start()
+
+    try:
+        rclpy.spin(analyzer)
+    except KeyboardInterrupt:
+        analyzer.get_logger().info("Performance analysis interrupted by user")
+        analyzer.generate_performance_report()
+        analyzer.plot_performance_metrics()
+
+    analyzer.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+### Step 2: Optimize Performance Based on Analysis
+
+1. Use the performance analysis to optimize system parameters:
+```bash
+# Run performance analysis
+source ~/isaac_ros_ws/install/setup.bash
+ros2 run my_nav2_integration performance_analyzer
+
+# Monitor performance during operation
+ros2 topic echo /performance/isaac_pose_frequency
+ros2 topic echo /performance/nav_path_frequency
+ros2 topic echo /performance/cpu_usage
+ros2 topic echo /performance/memory_usage
+```
+
+## Lab Summary
+
+In this lab, you have successfully:
+- Integrated Isaac ROS VSLAM outputs with Nav2 path planning
+- Configured Nav2 parameters specifically for bipedal humanoid kinematics
+- Validated the integration with comprehensive testing
+- Demonstrated bipedal path planning with visualization
+- Analyzed and optimized system performance
+
+The complete pipeline now enables sophisticated navigation for bipedal humanoid robots, with proper consideration for their unique kinematic constraints and stability requirements.
+
+## Troubleshooting Tips
+
+1. **Localization Issues**: If AMCL fails to localize properly, check that Isaac ROS pose estimates are being received and properly transformed to the Nav2 coordinate frame.
+
+2. **Path Planning Failures**: If paths fail to generate, verify that costmaps are being updated with Isaac ROS occupancy data and that the robot footprint is properly configured.
+
+3. **Performance Bottlenecks**: Monitor system resources and adjust update frequencies as needed to maintain real-time performance.
+
+4. **Integration Delays**: Check message synchronization between Isaac ROS and Nav2 systems to ensure timely data flow.
+
+## Next Steps
+
+The Isaac ROS to Nav2 integration is now complete, providing a full perception-to-navigation pipeline for bipedal humanoid robots. The next phase would involve implementing the complete navigation stack with additional sensors and refining the humanoid-specific parameters based on real-world testing.

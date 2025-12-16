@@ -1,0 +1,848 @@
+---
+sidebar_position: 22
+---
+
+# Performance Monitoring and Metrics
+
+## Overview
+
+This document outlines the performance monitoring and metrics framework for the Vision-Language-Action (VLA) system. The framework provides comprehensive monitoring of system performance across all components, enabling optimization and ensuring the system meets educational and operational requirements.
+
+## Performance Architecture
+
+The performance monitoring system consists of several interconnected components:
+
+### 1. Metric Collection Layer
+- Real-time performance data collection
+- Component-specific metrics gathering
+- System resource monitoring
+- User interaction tracking
+
+### 2. Storage Layer
+- Time-series database for metric storage
+- Historical performance data retention
+- Aggregated metric computation
+- Performance trend analysis
+
+### 3. Visualization Layer
+- Real-time dashboard displays
+- Historical performance charts
+- Alert and notification systems
+- Performance reporting tools
+
+## Key Performance Indicators (KPIs)
+
+### System-Level Metrics
+
+#### Latency Metrics
+- **Voice Processing Latency**: Time from audio capture to text conversion
+  - Target: &lt;200ms
+  - Measurement: Average, 95th percentile, max
+- **LLM Processing Latency**: Time for LLM to generate action plan
+  - Target: &lt;3000ms
+  - Measurement: Average, 95th percentile, max
+- **Action Execution Latency**: Time to execute individual actions
+  - Target: &lt;5000ms per action
+  - Measurement: Average, 95th percentile, max
+- **End-to-End Latency**: Total time from command to completion
+  - Target: &lt;10000ms for simple tasks
+  - Measurement: Average, 95th percentile, max
+
+#### Throughput Metrics
+- **Commands per Second**: Rate of command processing
+  - Target: >5 commands/second during peak usage
+  - Measurement: 1-minute, 5-minute, 15-minute averages
+- **Action Completion Rate**: Percentage of actions completed successfully
+  - Target: >95% success rate
+  - Measurement: Rolling 100-task window
+
+#### Resource Utilization Metrics
+- **CPU Usage**: Processor utilization across system components
+  - Target: &lt;80% average, &lt;95% peak
+  - Measurement: 1-second, 1-minute, 5-minute averages
+- **Memory Usage**: System memory consumption
+  - Target: &lt;85% of allocated memory
+  - Measurement: Current, peak, average usage
+- **GPU Usage**: GPU utilization (for Isaac Sim)
+  - Target: &lt;90% during normal operation
+  - Measurement: Memory and compute utilization
+
+### Component-Level Metrics
+
+#### Voice Processing Metrics
+- **Recognition Accuracy**: Percentage of correctly recognized commands
+  - Target: >85% in quiet environments, >70% with moderate noise
+  - Measurement: Rolling accuracy over 100 commands
+- **False Activation Rate**: Unintended activation phrase detection
+  - Target: &lt;5% false activations
+  - Measurement: Percentage of false activations per hour
+- **Audio Quality Metrics**: Signal-to-noise ratio and clarity
+  - Target: >15dB SNR in normal conditions
+  - Measurement: Real-time audio quality assessment
+
+#### LLM Integration Metrics
+- **API Response Time**: Time for LLM API calls
+  - Target: &lt;2000ms average
+  - Measurement: Average, 95th percentile, 99th percentile
+- **Token Usage**: LLM token consumption
+  - Target: Minimize token usage while maintaining quality
+  - Measurement: Tokens per request, total daily usage
+- **Plan Generation Success Rate**: Percentage of successful plan generations
+  - Target: >95% success rate
+  - Measurement: Success rate over 1000 requests
+
+#### Action Execution Metrics
+- **Navigation Success Rate**: Successful navigation completion
+  - Target: >90% success rate
+  - Measurement: Success rate over 100 navigation tasks
+- **Manipulation Success Rate**: Successful object manipulation
+  - Target: >85% success rate
+  - Measurement: Success rate over 100 manipulation tasks
+- **Perception Accuracy**: Object detection and recognition accuracy
+  - Target: >90% accuracy
+  - Measurement: Accuracy over 1000 detection attempts
+
+## Performance Monitoring Implementation
+
+### Metrics Collection Framework
+
+```python
+import time
+import threading
+from collections import deque, defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Any, Optional
+import json
+
+@dataclass
+class PerformanceMetric:
+    name: str
+    value: float
+    timestamp: float
+    tags: Dict[str, str]
+    unit: str
+
+class PerformanceMonitor:
+    def __init__(self, retention_minutes: int = 60):
+        self.retention_seconds = retention_minutes * 60
+        self.metrics_history = defaultdict(lambda: deque(maxlen=10000))  # Retain last 10000 samples
+        self.aggregated_metrics = {}
+        self.is_monitoring = False
+        self.monitoring_thread = None
+
+        # Initialize metric categories
+        self.metric_categories = [
+            'voice_processing',
+            'llm_integration',
+            'action_execution',
+            'system_resources',
+            'user_interaction'
+        ]
+
+    def start_monitoring(self):
+        """
+        Start the performance monitoring system
+        """
+        self.is_monitoring = True
+        self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self.monitoring_thread.start()
+
+    def stop_monitoring(self):
+        """
+        Stop the performance monitoring system
+        """
+        self.is_monitoring = False
+        if self.monitoring_thread:
+            self.monitoring_thread.join()
+
+    def record_metric(self, name: str, value: float, tags: Optional[Dict[str, str]] = None, unit: str = ""):
+        """
+        Record a performance metric
+        """
+        metric = PerformanceMetric(
+            name=name,
+            value=value,
+            timestamp=time.time(),
+            tags=tags or {},
+            unit=unit
+        )
+
+        # Store in history
+        self.metrics_history[name].append(metric)
+
+        # Update aggregated metrics
+        self._update_aggregated_metrics(metric)
+
+    def _update_aggregated_metrics(self, metric: PerformanceMetric):
+        """
+        Update aggregated metrics for the given metric
+        """
+        metric_name = metric.name
+        if metric_name not in self.aggregated_metrics:
+            self.aggregated_metrics[metric_name] = {
+                'count': 0,
+                'sum': 0,
+                'sum_sq': 0,
+                'min': float('inf'),
+                'max': float('-inf'),
+                'last_value': None,
+                'last_timestamp': 0
+            }
+
+        agg = self.aggregated_metrics[metric_name]
+        value = metric.value
+
+        agg['count'] += 1
+        agg['sum'] += value
+        agg['sum_sq'] += value * value
+        agg['min'] = min(agg['min'], value)
+        agg['max'] = max(agg['max'], value)
+        agg['last_value'] = value
+        agg['last_timestamp'] = metric.timestamp
+
+    def get_current_metrics(self) -> Dict[str, Any]:
+        """
+        Get current aggregated metrics
+        """
+        current_time = time.time()
+        result = {}
+
+        for name, agg in self.aggregated_metrics.items():
+            if agg['count'] > 0:
+                avg = agg['sum'] / agg['count']
+                variance = (agg['sum_sq'] / agg['count']) - (avg * avg)
+                std_dev = variance ** 0.5
+
+                result[name] = {
+                    'count': agg['count'],
+                    'average': avg,
+                    'std_dev': std_dev,
+                    'min': agg['min'],
+                    'max': agg['max'],
+                    'last_value': agg['last_value'],
+                    'last_timestamp': agg['last_timestamp']
+                }
+
+        return result
+
+    def get_metrics_for_time_range(self, name: str, seconds: int) -> List[PerformanceMetric]:
+        """
+        Get metrics for a specific time range
+        """
+        current_time = time.time()
+        cutoff_time = current_time - seconds
+
+        return [m for m in self.metrics_history[name] if m.timestamp >= cutoff_time]
+
+    def _monitoring_loop(self):
+        """
+        Main monitoring loop for system-level metrics
+        """
+        while self.is_monitoring:
+            try:
+                # Collect system resource metrics
+                self._collect_system_metrics()
+
+                # Collect component-specific metrics
+                self._collect_component_metrics()
+
+                # Clean up old metrics
+                self._cleanup_old_metrics()
+
+                # Sleep for 1 second between collections
+                time.sleep(1)
+
+            except Exception as e:
+                print(f"Error in monitoring loop: {e}")
+                time.sleep(5)  # Longer sleep on error
+
+    def _collect_system_metrics(self):
+        """
+        Collect system-level resource metrics
+        """
+        import psutil
+        import GPUtil
+
+        # CPU usage
+        cpu_percent = psutil.cpu_percent(interval=1)
+        self.record_metric('system.cpu.percent', cpu_percent, unit='%')
+
+        # Memory usage
+        memory = psutil.virtual_memory()
+        memory_percent = memory.percent
+        self.record_metric('system.memory.percent', memory_percent, unit='%')
+
+        # GPU usage (if available)
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            for gpu in gpus:
+                self.record_metric('system.gpu.memory_percent', gpu.memoryUtil * 100,
+                                 tags={'gpu_id': str(gpu.id)}, unit='%')
+                self.record_metric('system.gpu.utilization_percent', gpu.load * 100,
+                                 tags={'gpu_id': str(gpu.id)}, unit='%')
+
+    def _collect_component_metrics(self):
+        """
+        Collect component-specific metrics
+        """
+        # This would be called by other system components
+        # to record their specific metrics
+        pass
+
+    def _cleanup_old_metrics(self):
+        """
+        Remove metrics older than retention period
+        """
+        current_time = time.time()
+        cutoff_time = current_time - self.retention_seconds
+
+        for name, metrics in self.metrics_history.items():
+            # Remove old metrics
+            while metrics and metrics[0].timestamp < cutoff_time:
+                metrics.popleft()
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of system performance
+        """
+        current_metrics = self.get_current_metrics()
+
+        summary = {
+            'timestamp': time.time(),
+            'system_health': self._calculate_system_health(current_metrics),
+            'key_metrics': self._extract_key_metrics(current_metrics),
+            'trends': self._analyze_trends(),
+            'alerts': self._check_alerts(current_metrics)
+        }
+
+        return summary
+
+    def _calculate_system_health(self, metrics: Dict) -> str:
+        """
+        Calculate overall system health based on metrics
+        """
+        critical_metrics = [
+            ('system.cpu.percent', 80, 95),  # warn at 80%, alert at 95%
+            ('system.memory.percent', 85, 95),
+        ]
+
+        health_score = 100
+        for metric_name, warn_threshold, alert_threshold in critical_metrics:
+            if metric_name in metrics:
+                value = metrics[metric_name]['average']
+                if value > alert_threshold:
+                    health_score -= 30
+                elif value > warn_threshold:
+                    health_score -= 10
+
+        if health_score >= 90:
+            return 'Excellent'
+        elif health_score >= 70:
+            return 'Good'
+        elif health_score >= 50:
+            return 'Fair'
+        else:
+            return 'Poor'
+
+    def _extract_key_metrics(self, metrics: Dict) -> Dict[str, Any]:
+        """
+        Extract key performance metrics
+        """
+        key_metrics = {}
+        key_metric_names = [
+            'system.cpu.percent',
+            'system.memory.percent',
+            'voice_processing.latency.ms',
+            'llm_processing.latency.ms',
+            'action_execution.success_rate'
+        ]
+
+        for name in key_metric_names:
+            if name in metrics:
+                key_metrics[name] = metrics[name]
+
+        return key_metrics
+
+    def _analyze_trends(self) -> Dict[str, str]:
+        """
+        Analyze performance trends
+        """
+        # This would implement trend analysis logic
+        # comparing current metrics to historical baselines
+        return {
+            'cpu_usage': 'stable',
+            'memory_usage': 'increasing',
+            'latency': 'stable'
+        }
+
+    def _check_alerts(self, metrics: Dict) -> List[Dict[str, Any]]:
+        """
+        Check for performance alerts
+        """
+        alerts = []
+
+        # Define alert conditions
+        alert_conditions = [
+            ('system.cpu.percent', 90, 'high_cpu'),
+            ('system.memory.percent', 95, 'high_memory'),
+            ('voice_processing.latency.ms', 300, 'high_voice_latency'),
+            ('llm_processing.latency.ms', 5000, 'high_llm_latency')
+        ]
+
+        for metric_name, threshold, alert_type in alert_conditions:
+            if metric_name in metrics:
+                value = metrics[metric_name]['average']
+                if value > threshold:
+                    alerts.append({
+                        'type': alert_type,
+                        'metric': metric_name,
+                        'value': value,
+                        'threshold': threshold,
+                        'timestamp': time.time()
+                    })
+
+        return alerts
+```
+
+### Voice Processing Performance
+
+```python
+class VoiceProcessingPerformance:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+        self.command_times = []
+        self.recognition_accuracy = []
+
+    def start_voice_processing_timer(self, command_id: str):
+        """
+        Start timing for voice processing
+        """
+        start_time = time.time()
+        setattr(self, f"start_time_{command_id}", start_time)
+
+    def record_voice_processing_result(self, command_id: str,
+                                     recognized_text: str,
+                                     expected_text: str,
+                                     confidence: float):
+        """
+        Record voice processing results and metrics
+        """
+        start_time = getattr(self, f"start_time_{command_id}", None)
+        if start_time:
+            processing_time = time.time() - start_time
+
+            # Record latency
+            self.monitor.record_metric(
+                'voice_processing.latency.ms',
+                processing_time * 1000,  # Convert to milliseconds
+                tags={'command_id': command_id},
+                unit='ms'
+            )
+
+            # Calculate and record accuracy
+            accuracy = self._calculate_recognition_accuracy(recognized_text, expected_text)
+            self.monitor.record_metric(
+                'voice_processing.accuracy.percent',
+                accuracy * 100,
+                tags={'command_id': command_id},
+                unit='%'
+            )
+
+            # Record confidence
+            self.monitor.record_metric(
+                'voice_processing.confidence',
+                confidence,
+                tags={'command_id': command_id},
+                unit=''
+            )
+
+    def _calculate_recognition_accuracy(self, recognized: str, expected: str) -> float:
+        """
+        Calculate recognition accuracy using string similarity
+        """
+        import difflib
+
+        # Use sequence matcher to calculate similarity
+        similarity = difflib.SequenceMatcher(None, recognized.lower(), expected.lower()).ratio()
+        return similarity
+```
+
+### LLM Integration Performance
+
+```python
+class LLMPerformanceMonitor:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+        self.request_times = []
+        self.token_usage = []
+
+    def start_llm_request_timer(self, request_id: str):
+        """
+        Start timing for LLM request
+        """
+        start_time = time.time()
+        setattr(self, f"llm_start_time_{request_id}", start_time)
+
+    def record_llm_result(self, request_id: str,
+                         success: bool,
+                         tokens_used: int,
+                         response_time: float = None):
+        """
+        Record LLM request results
+        """
+        if response_time is None:
+            start_time = getattr(self, f"llm_start_time_{request_id}", None)
+            if start_time:
+                response_time = time.time() - start_time
+            else:
+                response_time = 0
+
+        # Record response time
+        self.monitor.record_metric(
+            'llm.response_time.ms',
+            response_time * 1000,  # Convert to milliseconds
+            tags={'request_id': request_id, 'success': str(success)},
+            unit='ms'
+        )
+
+        # Record token usage
+        self.monitor.record_metric(
+            'llm.tokens_used',
+            tokens_used,
+            tags={'request_id': request_id},
+            unit='tokens'
+        )
+
+        # Record success rate
+        success_rate = 1.0 if success else 0.0
+        self.monitor.record_metric(
+            'llm.success_rate',
+            success_rate,
+            tags={'request_id': request_id},
+            unit=''
+        )
+```
+
+### Action Execution Performance
+
+```python
+class ActionExecutionPerformance:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+
+    def start_action_timer(self, action_id: str, action_type: str):
+        """
+        Start timing for action execution
+        """
+        start_time = time.time()
+        setattr(self, f"action_start_time_{action_id}", start_time)
+        setattr(self, f"action_type_{action_id}", action_type)
+
+    def record_action_result(self, action_id: str, success: bool, error_type: str = None):
+        """
+        Record action execution results
+        """
+        start_time = getattr(self, f"action_start_time_{action_id}", None)
+        action_type = getattr(self, f"action_type_{action_id}", "unknown")
+
+        if start_time:
+            execution_time = time.time() - start_time
+
+            # Record execution time
+            self.monitor.record_metric(
+                f'action.{action_type}.execution_time.ms',
+                execution_time * 1000,
+                tags={'action_id': action_id, 'action_type': action_type, 'success': str(success)},
+                unit='ms'
+            )
+
+            # Record success rate
+            success_rate = 1.0 if success else 0.0
+            self.monitor.record_metric(
+                f'action.{action_type}.success_rate',
+                success_rate,
+                tags={'action_id': action_id, 'action_type': action_type},
+                unit=''
+            )
+
+            # Record error type if applicable
+            if error_type:
+                self.monitor.record_metric(
+                    f'action.{action_type}.error_rate',
+                    1.0 if error_type else 0.0,
+                    tags={'action_id': action_id, 'action_type': action_type, 'error_type': error_type},
+                    unit=''
+                )
+```
+
+## Performance Dashboards
+
+### Real-Time Dashboard
+
+```python
+class PerformanceDashboard:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+        self.refresh_interval = 1  # seconds
+
+    def generate_realtime_dashboard(self) -> Dict[str, Any]:
+        """
+        Generate real-time performance dashboard data
+        """
+        current_metrics = self.monitor.get_current_metrics()
+        performance_summary = self.monitor.get_performance_summary()
+
+        dashboard_data = {
+            'timestamp': time.time(),
+            'system_health': performance_summary['system_health'],
+            'key_indicators': self._get_key_indicators(current_metrics),
+            'system_resources': self._get_system_resources(current_metrics),
+            'component_performance': self._get_component_performance(current_metrics),
+            'recent_alerts': performance_summary['alerts']
+        }
+
+        return dashboard_data
+
+    def _get_key_indicators(self, metrics: Dict) -> Dict[str, Any]:
+        """
+        Get key performance indicators
+        """
+        indicators = {}
+
+        # CPU usage
+        cpu_metric = metrics.get('system.cpu.percent', {})
+        indicators['cpu'] = {
+            'current': cpu_metric.get('last_value', 0),
+            'average': cpu_metric.get('average', 0),
+            'status': self._get_status(cpu_metric.get('last_value', 0), 80, 95)
+        }
+
+        # Memory usage
+        mem_metric = metrics.get('system.memory.percent', {})
+        indicators['memory'] = {
+            'current': mem_metric.get('last_value', 0),
+            'average': mem_metric.get('average', 0),
+            'status': self._get_status(mem_metric.get('last_value', 0), 85, 95)
+        }
+
+        # Voice processing latency
+        voice_metric = metrics.get('voice_processing.latency.ms', {})
+        indicators['voice_latency'] = {
+            'current': voice_metric.get('last_value', 0),
+            'average': voice_metric.get('average', 0),
+            'status': self._get_status(voice_metric.get('last_value', 0), 150, 300, reverse=True)
+        }
+
+        return indicators
+
+    def _get_status(self, value: float, warn_threshold: float, alert_threshold: float, reverse: bool = False) -> str:
+        """
+        Get status based on thresholds
+        """
+        if reverse:
+            # Lower is better (e.g., latency)
+            if value <= warn_threshold:
+                return 'good'
+            elif value <= alert_threshold:
+                return 'warning'
+            else:
+                return 'alert'
+        else:
+            # Higher is worse (e.g., CPU usage)
+            if value <= warn_threshold:
+                return 'good'
+            elif value <= alert_threshold:
+                return 'warning'
+            else:
+                return 'alert'
+
+    def _get_system_resources(self, metrics: Dict) -> Dict[str, Any]:
+        """
+        Get system resource information
+        """
+        return {
+            'cpu': metrics.get('system.cpu.percent', {}),
+            'memory': metrics.get('system.memory.percent', {}),
+            'gpu': {k: v for k, v in metrics.items() if k.startswith('system.gpu.')}
+        }
+
+    def _get_component_performance(self, metrics: Dict) -> Dict[str, Any]:
+        """
+        Get component performance information
+        """
+        return {
+            'voice_processing': {
+                'latency': metrics.get('voice_processing.latency.ms', {}),
+                'accuracy': metrics.get('voice_processing.accuracy.percent', {})
+            },
+            'llm_integration': {
+                'response_time': metrics.get('llm.response_time.ms', {}),
+                'success_rate': metrics.get('llm.success_rate', {})
+            },
+            'action_execution': {
+                'navigation': {
+                    'latency': metrics.get('action.navigation.execution_time.ms', {}),
+                    'success_rate': metrics.get('action.navigation.success_rate', {})
+                },
+                'manipulation': {
+                    'latency': metrics.get('action.manipulation.execution_time.ms', {}),
+                    'success_rate': metrics.get('action.manipulation.success_rate', {})
+                }
+            }
+        }
+```
+
+## Alerting System
+
+### Performance Alert Configuration
+
+```python
+class PerformanceAlertSystem:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+        self.alert_rules = []
+        self.alert_handlers = []
+
+    def add_alert_rule(self, metric_name: str, condition: str, threshold: float,
+                      alert_type: str, description: str):
+        """
+        Add an alert rule
+        """
+        rule = {
+            'metric_name': metric_name,
+            'condition': condition,  # '>', '<', '>=', '<=', '==', '!='
+            'threshold': threshold,
+            'alert_type': alert_type,
+            'description': description
+        }
+        self.alert_rules.append(rule)
+
+    def check_alerts(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Check all metrics against alert rules
+        """
+        triggered_alerts = []
+
+        for rule in self.alert_rules:
+            metric_name = rule['metric_name']
+            if metric_name in metrics:
+                metric_avg = metrics[metric_name].get('average', 0)
+
+                condition_met = False
+                if rule['condition'] == '>':
+                    condition_met = metric_avg > rule['threshold']
+                elif rule['condition'] == '<':
+                    condition_met = metric_avg < rule['threshold']
+                elif rule['condition'] == '>=':
+                    condition_met = metric_avg >= rule['threshold']
+                elif rule['condition'] == '<=':
+                    condition_met = metric_avg <= rule['threshold']
+                elif rule['condition'] == '==':
+                    condition_met = metric_avg == rule['threshold']
+                elif rule['condition'] == '!=':
+                    condition_met = metric_avg != rule['threshold']
+
+                if condition_met:
+                    alert = {
+                        'timestamp': time.time(),
+                        'rule': rule,
+                        'current_value': metric_avg,
+                        'threshold': rule['threshold'],
+                        'status': 'triggered'
+                    }
+                    triggered_alerts.append(alert)
+
+        return triggered_alerts
+
+# Initialize alert rules
+alert_system = PerformanceAlertSystem(performance_monitor)
+alert_system.add_alert_rule('system.cpu.percent', '>', 90, 'high_cpu', 'CPU usage exceeds 90%')
+alert_system.add_alert_rule('system.memory.percent', '>', 95, 'high_memory', 'Memory usage exceeds 95%')
+alert_system.add_alert_rule('voice_processing.latency.ms', '>', 300, 'high_latency', 'Voice processing latency exceeds 300ms')
+alert_system.add_alert_rule('action.navigation.success_rate', '<', 0.85, 'low_success', 'Navigation success rate below 85%')
+```
+
+## Performance Reporting
+
+### Automated Performance Reports
+
+```python
+class PerformanceReporter:
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.monitor = performance_monitor
+
+    def generate_daily_report(self) -> str:
+        """
+        Generate a daily performance report
+        """
+        current_metrics = self.monitor.get_current_metrics()
+        performance_summary = self.monitor.get_performance_summary()
+
+        report = f"""
+DAILY PERFORMANCE REPORT - VLA System
+=====================================
+
+Date: {time.strftime('%Y-%m-%d %H:%M:%S')}
+System Health: {performance_summary['system_health']}
+
+SYSTEM RESOURCES:
+- CPU Usage: {current_metrics.get('system.cpu.percent', {}).get('average', 0):.2f}% (avg)
+- Memory Usage: {current_metrics.get('system.memory.percent', {}).get('average', 0):.2f}% (avg)
+
+PERFORMANCE METRICS:
+- Voice Processing Latency: {current_metrics.get('voice_processing.latency.ms', {}).get('average', 0):.2f}ms (avg)
+- Voice Recognition Accuracy: {current_metrics.get('voice_processing.accuracy.percent', {}).get('average', 0):.2f}% (avg)
+- LLM Response Time: {current_metrics.get('llm.response_time.ms', {}).get('average', 0):.2f}ms (avg)
+- Task Success Rate: {current_metrics.get('action_execution.success_rate', {}).get('average', 0):.2f}% (avg)
+
+KEY INSIGHTS:
+- System handled {current_metrics.get('command_processing.count', {}).get('count', 0)} commands today
+- Average end-to-end task completion time: {current_metrics.get('end_to_end.latency.ms', {}).get('average', 0):.2f}ms
+- Recovery success rate: {current_metrics.get('recovery.success_rate', {}).get('average', 0):.2f}%
+
+RECOMMENDATIONS:
+"""
+
+        # Add recommendations based on metrics
+        if current_metrics.get('system.cpu.percent', {}).get('average', 0) > 80:
+            report += "- Consider optimizing CPU-intensive operations\n"
+        if current_metrics.get('voice_processing.latency.ms', {}).get('average', 0) > 250:
+            report += "- Investigate voice processing optimization\n"
+        if current_metrics.get('action_execution.success_rate', {}).get('average', 0) < 90:
+            report += "- Review action execution reliability\n"
+
+        report += "\nReport generated by VLA Performance Monitoring System\n"
+        return report
+
+    def generate_weekly_trend_report(self) -> str:
+        """
+        Generate a weekly trend report
+        """
+        # This would analyze trends over the week
+        # and provide insights about performance changes
+        return "Weekly trend analysis would show performance changes over the past week, identifying patterns and areas for improvement."
+```
+
+## Performance Optimization Guidelines
+
+### Best Practices
+
+1. **Latency Optimization**
+   - Use efficient audio buffering
+   - Implement LLM response caching for common commands
+   - Optimize ROS 2 communication patterns
+   - Preload frequently used models
+
+2. **Resource Management**
+   - Implement proper memory management
+   - Use asynchronous processing where possible
+   - Optimize GPU memory usage for Isaac Sim
+   - Implement connection pooling for external APIs
+
+3. **Scalability Considerations**
+   - Design for multi-user scenarios
+   - Implement proper load balancing
+   - Use efficient data structures
+   - Optimize database queries if using persistent storage
+
+The performance monitoring and metrics framework provides comprehensive visibility into the VLA system's operation, enabling continuous optimization and ensuring the system meets the performance requirements for educational use. Regular monitoring and analysis of these metrics will help maintain optimal system performance and identify areas for improvement.

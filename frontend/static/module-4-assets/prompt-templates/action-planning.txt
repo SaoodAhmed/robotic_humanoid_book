@@ -1,0 +1,43 @@
+# VLA Action Planning Prompt Templates
+
+## System Prompt
+You are an expert robotics planner. Your task is to convert natural language commands into structured action sequences for a humanoid robot in a simulated environment.
+
+Rules:
+1. Always return a valid JSON array of action objects
+2. Each action must have 'type' and 'parameters' properties
+3. Use ROS 2 compatible action types: navigate_to_pose, detect_object, grasp_object, release_object, rotate, speak, wait, perceive_environment
+4. Include error handling and validation in your plans
+5. Account for the robot's physical limitations
+6. Consider environmental constraints and obstacles
+7. If the command is ambiguous, ask for clarification or make reasonable assumptions
+8. Prioritize safety in all generated actions
+9. Ensure action sequences are executable in the given environment
+
+## Command Processing Prompt
+Convert the following natural language command into a sequence of ROS 2 actions:
+
+Command: "{command}"
+
+Environmental Context:
+{environment_context}
+
+Robot Capabilities:
+{robot_capabilities}
+
+Respond with a JSON array of actions. Each action should be an object with 'type' and 'parameters'.
+Example actions: navigate_to_pose, detect_object, grasp_object, release_object, etc.
+Ensure the action sequence is feasible, accounts for potential obstacles, and follows safety protocols.
+
+IMPORTANT: Do not generate actions that could harm humans, damage property, or cause unsafe situations.
+
+## Ambiguity Detection Prompt
+Analyze the following command for ambiguity:
+Command: "{command}"
+
+Respond with 'AMBIGUOUS' if the command lacks specific information needed for execution,
+or 'CLEAR' if the command has sufficient detail for a robot to execute.
+
+## Context Enrichment Prompt
+Given the command "{command}", environmental context "{environment}", and robot capabilities "{capabilities}",
+generate a detailed action plan that accounts for the specific situation, available resources, and constraints.

@@ -1,0 +1,857 @@
+# Isaac Sim Performance Optimization for Complex Scenes (10 FPS Target)
+
+## Overview
+
+Complex Isaac Sim scenes with detailed geometry, multiple sensors, complex lighting, and physics simulations require different optimization strategies compared to basic scenes. This section covers advanced optimization techniques to achieve a stable 10 FPS target while maintaining the visual and simulation quality needed for complex synthetic dataset generation.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Identify and address performance bottlenecks in complex scenes
+- Apply advanced optimization techniques for complex scene performance
+- Configure rendering settings for 10 FPS target with complex content
+- Implement multi-sensor optimization strategies
+- Balance high-fidelity simulation with performance requirements
+
+## Complex Scene Performance Fundamentals
+
+### Performance Requirements
+
+For complex Isaac Sim scenes:
+- **10 FPS**: Target for scenes with detailed geometry, multiple sensors, and complex lighting
+- **Stability**: Maintain consistent frame rate despite complexity
+- **Quality**: Preserve visual and simulation fidelity while optimizing
+
+### Complexity Indicators
+
+Complex scenes typically include:
+- 50+ objects with detailed geometry
+- Multiple sensors (cameras, LiDAR, IMU, etc.)
+- Complex lighting with global illumination
+- Detailed physics with soft bodies or deformable objects
+- High-resolution textures and materials
+- Advanced rendering effects (subsurface scattering, denoising)
+
+## Advanced Geometry Optimization
+
+### Multi-LOD Systems
+
+Implement sophisticated Level of Detail (LOD) systems for complex scenes:
+```python
+def setup_advanced_lod_system():
+    """Set up advanced LOD system for complex scenes"""
+
+    # Define multiple LOD levels with distance thresholds
+    lod_config = {
+        'level_0': {
+            'distance': 0,      # 0m - 5m: Full detail
+            'quality': 1.0,
+            'geometry': 'high_poly',
+            'textures': '4k'
+        },
+        'level_1': {
+            'distance': 5,      # 5m - 15m: High detail
+            'quality': 0.8,
+            'geometry': 'medium_poly',
+            'textures': '2k'
+        },
+        'level_2': {
+            'distance': 15,     # 15m - 30m: Medium detail
+            'quality': 0.6,
+            'geometry': 'low_poly',
+            'textures': '1k'
+        },
+        'level_3': {
+            'distance': 30,     # 30m - 50m: Low detail
+            'quality': 0.4,
+            'geometry': 'proxy',
+            'textures': '512'
+        },
+        'level_4': {
+            'distance': 50,     # 50m+: Very low detail
+            'quality': 0.2,
+            'geometry': 'bounding_box',
+            'textures': 'none'
+        }
+    }
+
+    return lod_config
+
+def implement_lod_switching():
+    """Implement dynamic LOD switching based on distance and performance"""
+
+    # Monitor current FPS and adjust LOD accordingly
+    # If FPS drops below target, switch to lower LOD
+    # If FPS is stable above target, consider higher LOD
+    pass
+```
+
+### Geometry Instancing and Batching
+
+Optimize rendering through instancing and batching:
+```python
+def setup_geometry_instancing():
+    """Set up geometry instancing for performance in complex scenes"""
+
+    instancing_config = {
+        'enable_object_instancing': True,
+        'max_instances_per_batch': 1000,
+        'enable_material_sharing': True,
+        'use_mesh_caching': True,
+        'enable_skinning_caching': True  # For animated objects
+    }
+
+    return instancing_config
+
+def create_batched_rendering_system():
+    """Create a system for batched rendering of similar objects"""
+
+    # Group objects by material, geometry type, and other render state
+    render_batches = {
+        'opaque_static': [],      # Static opaque objects
+        'opaque_animated': [],    # Animated opaque objects
+        'transparent': [],        # Transparent objects
+        'vegetation': [],         # Vegetation with special shaders
+        'particles': []           # Particle systems
+    }
+
+    return render_batches
+```
+
+## Advanced Rendering Optimization
+
+### Render Quality Configuration
+
+Configure rendering settings for complex scenes targeting 10 FPS:
+```python
+def configure_render_settings_for_10fps():
+    """Configure render settings optimized for complex scenes at 10 FPS"""
+
+    render_settings = {
+        # Resolution settings - may need to reduce for complex scenes
+        'resolution': [1280, 720],    # HD resolution for complex scenes
+        'max_resolution': [1920, 1080], # Maximum allowed resolution
+        'dynamic_resolution': True,   # Enable dynamic resolution scaling
+
+        # Anti-aliasing - balance quality with performance
+        'aa_samples': 4,              # Higher samples for quality
+        'enable_fsr': True,           # Enable FSR for quality/performance balance
+        'fsr_sharpness': 0.8,         # FSR sharpness setting
+
+        # Lighting and shadows - major performance factors
+        'enable_global_illumination': True,      # Enable for realistic lighting
+        'gi_quality': 'medium',                  # Medium quality for 10 FPS
+        'enable_subsurface_scattering': True,    # Enable for realistic materials
+        'max_bounces': 8,                       # Higher bounces for quality
+
+        # Shadow optimization for complex scenes
+        'shadow_resolution': 2048,              # Higher resolution for quality
+        'enable_contact_shadows': True,         # Enable for realism
+        'max_shadow_distance': 50.0,            # Extend shadow distance
+        'shadow_cascade_count': 4,              # Multiple shadow cascades
+
+        # Advanced effects with performance impact
+        'enable_motion_blur': True,             # Enable if needed
+        'enable_depth_of_field': False,         # Disable for performance
+        'enable_bloom': True,                   # Enable for realism
+        'enable_lens_flare': False,             # Disable for performance
+        'enable_chromatic_aberration': False,   # Disable for performance
+
+        # Denoising settings
+        'enable_denoising': True,               # Enable for path tracing
+        'denoising_quality': 'medium',          # Balance quality and speed
+        'temporal_denoising': True              # Use temporal information
+    }
+
+    return render_settings
+```
+
+### Adaptive Quality Settings
+
+Implement adaptive quality based on current performance:
+```python
+def setup_adaptive_quality_system():
+    """Set up adaptive quality system for maintaining target FPS"""
+
+    adaptive_config = {
+        'target_fps': 10,
+        'acceptable_range': (9, 11),  # Acceptable FPS range
+        'quality_adjustment_step': 0.1,  # Step size for quality changes
+
+        # Quality parameters that can be adjusted
+        'adjustable_parameters': {
+            'shadow_resolution': [512, 1024, 2048, 4096],
+            'gi_quality': ['low', 'medium', 'high'],
+            'max_bounces': [4, 8, 12, 16],
+            'aa_samples': [2, 4, 8],
+            'texture_resolution': ['low', 'medium', 'high', 'ultra']
+        },
+
+        # Performance monitoring and adjustment
+        'monitor_interval': 1.0,  # Check performance every second
+        'adjustment_delay': 0.5,  # Delay before applying adjustments
+        'smoothing_factor': 0.7   # Smoothing for quality adjustments
+    }
+
+    return adaptive_config
+
+def adaptive_quality_manager(current_fps, target_fps=10):
+    """Manage adaptive quality based on current performance"""
+
+    quality_scale = 1.0  # Base quality scale
+
+    if current_fps < target_fps * 0.9:  # Performance too low
+        quality_scale *= 0.9  # Reduce quality
+    elif current_fps > target_fps * 1.1:  # Performance better than needed
+        quality_scale = min(quality_scale * 1.1, 1.0)  # Increase quality up to max
+
+    return quality_scale
+```
+
+## Multi-Sensor Optimization
+
+### Sensor Management for Complex Scenes
+
+Optimize multiple sensors in complex scenes:
+```python
+def setup_multi_sensor_optimization():
+    """Set up optimization for multiple sensors in complex scenes"""
+
+    sensor_config = {
+        'max_active_sensors': 10,     # Maximum active sensors
+        'sensor_priority': {         # Priority for sensor scheduling
+            'rgb_camera': 1,
+            'depth_camera': 2,
+            'semantic_camera': 3,
+            'lidar': 4,
+            'imu': 5
+        },
+        'sensor_scheduling': 'round_robin',  # Round-robin or priority-based
+        'sensor_resolution_scaling': {       # Resolution scaling by priority
+            'high_priority': 1.0,            # Full resolution
+            'medium_priority': 0.75,         # 75% resolution
+            'low_priority': 0.5              # 50% resolution
+        },
+        'sensor_update_frequency': {        # Update frequency by type
+            'rgb_camera': 10,                # 10 Hz for RGB
+            'depth_camera': 10,              # 10 Hz for depth
+            'semantic_camera': 5,            # 5 Hz for semantic
+            'lidar': 10,                     # 10 Hz for LiDAR
+            'imu': 100                       # 100 Hz for IMU
+        }
+    }
+
+    return sensor_config
+
+def optimize_sensor_rendering():
+    """Optimize rendering for multiple sensors"""
+
+    # Use shared geometry and lighting calculations
+    # Render to multiple targets simultaneously
+    # Use compute shaders for sensor-specific processing
+
+    optimization_strategies = [
+        "Shared geometry processing",
+        "Shared lighting calculations",
+        "Multi-target rendering",
+        "Compute shader acceleration",
+        "Temporal reprojection for lower-frequency sensors"
+    ]
+
+    return optimization_strategies
+```
+
+### Sensor-Specific Optimizations
+
+Apply optimizations specific to different sensor types:
+```python
+def optimize_camera_sensors():
+    """Optimize RGB and depth cameras"""
+
+    camera_optimizations = {
+        'shared_rendering_pipeline': True,    # Share pipeline for multiple cameras
+        'multi_view_rendering': True,         # Render multiple views in one pass
+        'frustum_culling_per_camera': True,   # Cull per camera view
+        'occlusion_culling': True,            # Use occlusion culling
+        'texture_streaming_per_view': True    # Stream textures per camera
+    }
+
+    return camera_optimizations
+
+def optimize_lidar_simulation():
+    """Optimize LiDAR sensor simulation"""
+
+    lidar_optimizations = {
+        'ray_batching': True,                 # Batch ray calculations
+        'adaptive_ray_density': True,         # Adjust based on scene complexity
+        'occlusion_optimization': True,       # Optimize for occlusion
+        'multi_return_handling': True,        # Handle multiple returns efficiently
+        'gpu_ray_tracing': True               # Use GPU for ray tracing
+    }
+
+    return lidar_optimizations
+
+def optimize_physics_sensors():
+    """Optimize physics-based sensors (IMU, force sensors)"""
+
+    physics_sensor_optimizations = {
+        'batched_physics_queries': True,      # Batch physics queries
+        'interpolated_readings': True,        # Interpolate between physics steps
+        'sensor_noise_simulation': True,      # Simulate realistic sensor noise
+        'temporal_filtering': True,           # Filter readings temporally
+        'parallel_sensor_updates': True       # Update sensors in parallel
+    }
+
+    return physics_sensor_optimizations
+```
+
+## Physics Optimization for Complex Scenes
+
+### Advanced Physics Settings
+
+Configure physics for complex scenes with detailed simulation:
+```python
+def configure_physics_for_complex_scenes():
+    """Configure physics settings for complex scenes at 10 FPS"""
+
+    physics_settings = {
+        # Solver settings for complex interactions
+        'solver_iterations': 8,               # Higher iterations for stability
+        'velocity_iterations': 2,             # More velocity iterations
+        'position_iterations': 2,             # More position iterations
+        'min_position_iteration': 1,          # Minimum iterations
+        'max_depenetration_velocity': 20.0,   # Higher for complex collisions
+        'sleep_threshold': 0.005,             # Lower for more responsive objects
+        'stabilization_threshold': 0.1,       # Lower for more stability
+
+        # Collision and contact settings
+        'collision_margin': 0.0005,           # Smaller margin for accuracy
+        'default_rest_offset': 0.001,         # Smaller rest offset
+        'default_contact_offset': 0.01,       # Smaller contact offset
+        'use_sweep_and_prune': True,          # Enable for many objects
+        'use_enhanced_determinism': True,     # Enable for consistency
+
+        # Soft body and deformable object settings
+        'enable_soft_body_dynamics': True,    # Enable soft body simulation
+        'soft_body_iterations': 5,            # Soft body solver iterations
+        'cloth_simulation': True,             # Enable cloth simulation
+        'fluid_simulation': False,            # Disable for performance
+
+        # Multi-threading settings
+        'enable_multithreading': True,        # Enable multi-threading
+        'max_threads': 8,                     # Maximum physics threads
+        'thread_scheduling': 'dynamic'        # Dynamic thread scheduling
+    }
+
+    return physics_settings
+```
+
+### Physics LOD and Caching
+
+Implement physics optimization techniques:
+```python
+def setup_physics_lod_system():
+    """Set up physics Level of Detail for complex scenes"""
+
+    physics_lod_config = {
+        'high_detail': {
+            'distance': 0,         # 0m - 5m: Full physics detail
+            'solver_iterations': 10,
+            'collision_complexity': 'convex_mesh',
+            'contact_processing': 'full'
+        },
+        'medium_detail': {
+            'distance': 5,         # 5m - 15m: Medium physics detail
+            'solver_iterations': 6,
+            'collision_complexity': 'convex_hull',
+            'contact_processing': 'reduced'
+        },
+        'low_detail': {
+            'distance': 15,        # 15m - 30m: Low physics detail
+            'solver_iterations': 4,
+            'collision_complexity': 'bounding_box',
+            'contact_processing': 'simplified'
+        },
+        'proxy': {
+            'distance': 30,        # 30m+: Physics proxy only
+            'solver_iterations': 2,
+            'collision_complexity': 'sphere',
+            'contact_processing': 'none'
+        }
+    }
+
+    return physics_lod_config
+
+def setup_physics_caching():
+    """Set up physics state caching for performance"""
+
+    caching_config = {
+        'enable_state_caching': True,         # Cache physics states
+        'cache_duration': 0.1,                # Cache for 100ms
+        'interpolation_enabled': True,        # Interpolate between cached states
+        'prediction_enabled': True,           # Predict future states
+        'max_cache_size': 100,                # Maximum cached states
+        'cache_compression': True             # Compress cached states
+    }
+
+    return caching_config
+```
+
+## Memory and Resource Management
+
+### Memory Optimization for Complex Scenes
+
+Optimize memory usage in complex scenes:
+```python
+def setup_memory_optimization():
+    """Set up memory optimization for complex scenes"""
+
+    memory_config = {
+        'texture_streaming': True,            # Stream textures on demand
+        'geometry_streaming': True,           # Stream geometry on demand
+        'gpu_memory_management': True,        # Manage GPU memory
+        'memory_budget': 8 * 1024 * 1024 * 1024,  # 8GB budget (in bytes)
+        'memory_warning_threshold': 0.8,      # Warn at 80% usage
+        'automatic_memory_cleanup': True,     # Clean up unused resources
+        'resource_pools': {
+            'geometry_pool_size': 1000,       # Geometry object pool
+            'material_pool_size': 500,        # Material object pool
+            'texture_pool_size': 2000,        # Texture object pool
+            'light_pool_size': 100            # Light object pool
+        }
+    }
+
+    return memory_config
+
+def implement_memory_budgeting():
+    """Implement memory budgeting for complex scenes"""
+
+    # Monitor memory usage and adjust quality accordingly
+    budget_config = {
+        'current_usage': 0,
+        'budget_limit': 8 * 1024 * 1024 * 1024,  # 8GB
+        'budget_thresholds': {
+            'warning': 0.7,     # 70% of budget
+            'caution': 0.85,    # 85% of budget
+            'critical': 0.95    # 95% of budget
+        },
+        'budget_actions': {
+            'warning': 'log_warning',
+            'caution': 'reduce_quality',
+            'critical': 'unload_resources'
+        }
+    }
+
+    return budget_config
+```
+
+### Resource Streaming and Caching
+
+Implement advanced resource management:
+```python
+def setup_resource_streaming():
+    """Set up advanced resource streaming"""
+
+    streaming_config = {
+        'enable_texture_streaming': True,
+        'enable_geometry_streaming': True,
+        'enable_material_streaming': True,
+        'streaming_distance': 50.0,           # Stream resources within 50m
+        'preloading_distance': 75.0,          # Preload resources within 75m
+        'unloading_distance': 100.0,          # Unload resources beyond 100m
+        'streaming_priority': 'distance',     # Priority by distance
+        'bandwidth_throttling': True,         # Throttle streaming based on bandwidth
+        'async_loading': True                 # Load resources asynchronously
+    }
+
+    return streaming_config
+
+def setup_resource_caching():
+    """Set up resource caching for complex scenes"""
+
+    cache_config = {
+        'geometry_cache_size': 500 * 1024 * 1024,    # 500MB geometry cache
+        'texture_cache_size': 2 * 1024 * 1024 * 1024,  # 2GB texture cache
+        'material_cache_size': 100 * 1024 * 1024,   # 100MB material cache
+        'cache_compression': True,                   # Compress cached resources
+        'cache_eviction_policy': 'lru',             # Least Recently Used policy
+        'cache_warming': True                       # Pre-warm cache with common resources
+    }
+
+    return cache_config
+```
+
+## Advanced Profiling and Monitoring
+
+### Comprehensive Performance Monitoring
+
+Implement detailed performance monitoring for complex scenes:
+```python
+class ComplexScenePerformanceMonitor:
+    """Performance monitor for complex Isaac Sim scenes"""
+
+    def __init__(self):
+        self.metrics = {
+            'fps': [],
+            'frame_time': [],
+            'render_time': [],
+            'physics_time': [],
+            'sensor_time': [],
+            'memory_usage': [],
+            'gpu_usage': [],
+            'cpu_usage': []
+        }
+
+        self.thresholds = {
+            'min_fps': 10,
+            'max_frame_time': 100,  # 100ms per frame for 10 FPS
+            'max_render_time': 70,  # 70ms for rendering (leaving 30ms for other)
+            'max_physics_time': 20, # 20ms for physics
+            'max_memory_usage': 0.9  # 90% of available memory
+        }
+
+    def capture_frame_metrics(self):
+        """Capture metrics for the current frame"""
+
+        import time
+        import psutil
+        import GPUtil
+
+        frame_metrics = {
+            'timestamp': time.time(),
+            'fps': self.calculate_fps(),
+            'frame_time': self.get_frame_time(),
+            'render_time': self.get_render_time(),
+            'physics_time': self.get_physics_time(),
+            'memory_usage': psutil.virtual_memory().percent / 100,
+            'gpu_usage': self.get_gpu_usage(),
+            'cpu_usage': psutil.cpu_percent()
+        }
+
+        # Store metrics
+        for key, value in frame_metrics.items():
+            if key in self.metrics:
+                self.metrics[key].append(value)
+                # Keep only recent metrics (last 100 frames)
+                if len(self.metrics[key]) > 100:
+                    self.metrics[key].pop(0)
+
+        return frame_metrics
+
+    def calculate_fps(self):
+        """Calculate current FPS"""
+        # Implementation would use Isaac Sim's timing system
+        return 10.0  # Placeholder
+
+    def get_frame_time(self):
+        """Get current frame time"""
+        # Implementation would measure actual frame time
+        return 100.0  # Placeholder in ms
+
+    def get_render_time(self):
+        """Get time spent in rendering"""
+        # Implementation would measure rendering time
+        return 70.0  # Placeholder in ms
+
+    def get_physics_time(self):
+        """Get time spent in physics simulation"""
+        # Implementation would measure physics time
+        return 20.0  # Placeholder in ms
+
+    def get_gpu_usage(self):
+        """Get current GPU usage"""
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            return gpus[0].load
+        return 0.0
+
+    def check_performance_thresholds(self):
+        """Check if performance metrics meet thresholds"""
+
+        current_metrics = {key: values[-1] if values else 0
+                          for key, values in self.metrics.items()}
+
+        violations = []
+        for metric, threshold in self.thresholds.items():
+            if metric in current_metrics:
+                if metric.startswith('max_') and current_metrics[metric.replace('max_', '')] > threshold:
+                    violations.append(f"{metric.replace('max_', '')} exceeds threshold")
+                elif metric == 'min_fps' and current_metrics['fps'] < threshold:
+                    violations.append("FPS below minimum threshold")
+
+        return violations, current_metrics
+
+    def generate_performance_report(self):
+        """Generate comprehensive performance report"""
+
+        if not self.metrics['fps']:
+            return "No performance data collected"
+
+        avg_fps = sum(self.metrics['fps']) / len(self.metrics['fps']) if self.metrics['fps'] else 0
+        min_fps = min(self.metrics['fps']) if self.metrics['fps'] else 0
+        max_fps = max(self.metrics['fps']) if self.metrics['fps'] else 0
+
+        report = {
+            'average_fps': avg_fps,
+            'minimum_fps': min_fps,
+            'maximum_fps': max_fps,
+            'target_met': avg_fps >= 10,
+            'total_frames': len(self.metrics['fps']),
+            'violations': self.check_performance_thresholds()[0],
+            'memory_trend': 'increasing' if len(self.metrics['memory_usage']) > 1 and
+                           self.metrics['memory_usage'][-1] > self.metrics['memory_usage'][0] else 'stable',
+            'gpu_trend': 'increasing' if len(self.metrics['gpu_usage']) > 1 and
+                         self.metrics['gpu_usage'][-1] > self.metrics['gpu_usage'][0] else 'stable'
+        }
+
+        return report
+
+# Usage example
+perf_monitor = ComplexScenePerformanceMonitor()
+```
+
+## Practical Complex Scene Optimization Exercise
+
+### Objective
+Optimize a complex scene with multiple sensors, detailed geometry, and complex lighting to achieve 10 FPS.
+
+### Steps
+
+1. **Complex Scene Setup**: Create a scene with multiple elements
+2. **Performance Baseline**: Measure initial performance
+3. **Apply Optimizations**: Implement complex scene optimizations
+4. **Performance Validation**: Verify 10 FPS target is met
+5. **Quality Assessment**: Ensure simulation quality is maintained
+
+### Sample Complex Scene Optimization Pipeline
+
+```python
+def optimize_complex_scene_for_10fps(scene_path):
+    """Complete optimization pipeline for complex scenes targeting 10 FPS"""
+
+    print("🔍 Starting complex scene optimization for 10 FPS...")
+
+    # Initialize performance monitor
+    perf_monitor = ComplexScenePerformanceMonitor()
+
+    # Step 1: Load complex scene
+    print("📂 Loading complex scene...")
+    # This would involve loading a USD scene with multiple elements
+
+    # Step 2: Apply advanced geometry optimizations
+    print("🧱 Applying advanced geometry optimizations...")
+    lod_config = setup_advanced_lod_system()
+    instancing_config = setup_geometry_instancing()
+
+    # Step 3: Apply rendering optimizations
+    print("🖥️ Configuring rendering for complex scenes...")
+    render_config = configure_render_settings_for_10fps()
+    adaptive_config = setup_adaptive_quality_system()
+
+    # Step 4: Apply multi-sensor optimizations
+    print("📡 Optimizing multi-sensor setup...")
+    sensor_config = setup_multi_sensor_optimization()
+
+    # Step 5: Apply physics optimizations
+    print("⚙️ Optimizing physics for complex simulation...")
+    physics_config = configure_physics_for_complex_scenes()
+    physics_lod_config = setup_physics_lod_system()
+
+    # Step 6: Apply memory optimizations
+    print("💾 Setting up memory optimization...")
+    memory_config = setup_memory_optimization()
+    streaming_config = setup_resource_streaming()
+
+    # Step 7: Performance testing loop
+    print("🏃 Starting performance optimization loop...")
+    test_duration = 30  # Test for 30 seconds
+    start_time = time.time()
+
+    optimization_iteration = 0
+    target_fps = 10
+    tolerance = 0.5  # Acceptable deviation from target
+
+    while time.time() - start_time < test_duration and optimization_iteration < 10:
+        # Capture current performance metrics
+        frame_metrics = perf_monitor.capture_frame_metrics()
+        current_fps = frame_metrics['fps']
+
+        print(f"📊 Iteration {optimization_iteration + 1}: Current FPS = {current_fps:.2f}")
+
+        # Adjust quality based on current performance
+        if current_fps < target_fps - tolerance:
+            # Performance too low, reduce quality
+            print("   ⚠️  FPS too low, applying optimizations...")
+            # Apply more aggressive optimizations
+            apply_aggressive_optimizations()
+        elif current_fps > target_fps + tolerance:
+            # Performance higher than needed, can increase quality
+            print("   ✅ FPS good, maintaining current settings...")
+            # Could potentially increase quality here
+        else:
+            # Performance is within acceptable range
+            print("   🟢 FPS within target range")
+            break
+
+        optimization_iteration += 1
+
+    # Step 8: Generate final report
+    final_report = perf_monitor.generate_performance_report()
+    print(f"\n📈 Final Performance Results:")
+    print(f"   Average FPS: {final_report['average_fps']:.2f}")
+    print(f"   Minimum FPS: {final_report['minimum_fps']:.2f}")
+    print(f"   Maximum FPS: {final_report['maximum_fps']:.2f}")
+    print(f"   Target Met: {'✅ YES' if final_report['target_met'] else '❌ NO'}")
+
+    if final_report['violations']:
+        print(f"   ⚠️  Performance violations: {final_report['violations']}")
+
+    # Step 9: Provide final recommendations
+    if not final_report['target_met']:
+        print("\n💡 Recommendations for further optimization:")
+        print("   - Reduce scene complexity further")
+        print("   - Lower render resolution")
+        print("   - Reduce sensor count or frequency")
+        print("   - Simplify physics simulation")
+        print("   - Use more aggressive LOD systems")
+    else:
+        print("\n✅ Complex scene optimized successfully for 10 FPS!")
+
+    return final_report
+
+def apply_aggressive_optimizations():
+    """Apply aggressive optimizations when performance is too low"""
+    # This would implement the most aggressive optimization measures
+    pass
+
+def setup_complex_scene_elements():
+    """Set up elements typical of complex scenes"""
+    # This would create a complex scene with multiple objects, sensors, etc.
+    pass
+
+# Example usage
+if __name__ == "__main__":
+    # Optimize a complex scene for 10 FPS
+    results = optimize_complex_scene_for_10fps("path/to/complex/scene.usd")
+```
+
+## Troubleshooting Complex Scene Performance
+
+### Common Complex Scene Issues
+
+#### Multi-Sensor Bottlenecks
+- **Symptoms**: Performance degradation with multiple sensors
+- **Solutions**:
+  - Implement sensor scheduling
+  - Reduce sensor update frequency
+  - Use shared rendering pipelines
+  - Optimize sensor-specific calculations
+
+#### Physics Complexity Issues
+- **Symptoms**: Physics simulation impacting frame rate
+- **Solutions**:
+  - Implement physics LOD
+  - Reduce solver iterations for distant objects
+  - Use simplified collision shapes
+  - Apply temporal sub-stepping
+
+#### Memory Pressure
+- **Symptoms**: Slow performance, potential crashes due to memory
+- **Solutions**:
+  - Enable texture streaming
+  - Implement geometry streaming
+  - Use resource pooling
+  - Apply aggressive caching
+
+### Diagnostic Tools for Complex Scenes
+
+```python
+def diagnose_complex_scene_issues():
+    """Diagnose issues specific to complex scenes"""
+
+    diagnostics = {
+        'sensor_count': count_active_sensors(),
+        'object_complexity': measure_scene_complexity(),
+        'physics_load': measure_physics_load(),
+        'render_load': measure_render_load(),
+        'memory_pressure': measure_memory_pressure(),
+        'gpu_utilization': measure_gpu_utilization()
+    }
+
+    issues = []
+    if diagnostics['sensor_count'] > 20:  # Too many active sensors
+        issues.append(f"High sensor count ({diagnostics['sensor_count']}) - consider sensor scheduling")
+    if diagnostics['physics_load'] > 0.8:  # High physics load
+        issues.append("High physics computational load - consider physics LOD")
+    if diagnostics['memory_pressure'] > 0.9:  # High memory pressure
+        issues.append("High memory pressure - implement streaming and caching")
+
+    return diagnostics, issues
+
+def count_active_sensors():
+    """Count active sensors in the scene"""
+    # This would count sensors in the Isaac Sim scene
+    return 15  # Simulated count
+
+def measure_scene_complexity():
+    """Measure overall scene complexity"""
+    # This would calculate complexity based on objects, polygons, etc.
+    return 0.7  # Simulated complexity (0-1 scale)
+
+def measure_physics_load():
+    """Measure physics computational load"""
+    # This would measure the computational load of physics simulation
+    return 0.6  # Simulated load (0-1 scale)
+
+def measure_render_load():
+    """Measure rendering computational load"""
+    # This would measure the computational load of rendering
+    return 0.8  # Simulated load (0-1 scale)
+
+def measure_memory_pressure():
+    """Measure memory pressure"""
+    import psutil
+    return psutil.virtual_memory().percent / 100
+
+def measure_gpu_utilization():
+    """Measure GPU utilization"""
+    import GPUtil
+    gpus = GPUtil.getGPUs()
+    return gpus[0].load if gpus else 0.0
+```
+
+## Best Practices for Complex Scenes
+
+1. **Plan Complexity**: Design scenes with performance targets in mind
+2. **Iterative Optimization**: Apply optimizations iteratively and measure impact
+3. **Use Profiling**: Regularly profile to identify bottlenecks
+4. **Resource Management**: Implement proper resource streaming and caching
+5. **Quality Scaling**: Use adaptive quality systems to maintain target FPS
+6. **Test on Target Hardware**: Always test on the intended deployment hardware
+
+## Performance Targets for Complex Scenes
+
+For complex Isaac Sim scenes:
+- **Target FPS**: 10 FPS minimum
+- **Resolution**: Up to 1280x720 (HD) for complex content
+- **Object count**: 50-200 detailed objects
+- **Sensor count**: Up to 10 concurrent sensors
+- **Physics complexity**: Detailed rigid bodies, soft bodies, cloth
+- **Lighting**: Global illumination, multiple light sources
+- **Memory usage**: Up to 8GB RAM for complex scenes
+
+## Next Steps
+
+After optimizing complex scenes for 10 FPS:
+1. Explore scalability optimization for multiple concurrent sessions
+2. Learn about cloud-based Isaac Sim deployment
+3. Study distributed rendering techniques
+4. Investigate real-time optimization algorithms
+5. Consider hardware acceleration options
+
+## References
+
+- [Isaac Sim Complex Scene Optimization](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/performance.html)
+- [Multi-Sensor Optimization in Isaac Sim](https://nvidia-isaac-ros.github.io/performance_guidelines.html)
+- [Complex Physics Simulation Optimization](https://docs.omniverse.nvidia.com/isaacsim/latest/features/physics.html)
+- [Advanced Rendering Optimization](https://developer.nvidia.com/blog/optimizing-real-time-rendering/)

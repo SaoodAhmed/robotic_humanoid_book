@@ -1,0 +1,174 @@
+---
+sidebar_position: 4
+---
+
+# Simulation Environment Configuration
+
+## Overview
+This document describes the configuration for the simulation environment used in the Vision-Language-Action (VLA) system. The simulation provides a safe, reproducible environment for testing voice commands, action planning, and robot behaviors without requiring physical hardware.
+
+## Environment Setup
+
+The simulation environment is built using NVIDIA Isaac Sim with the following configuration:
+
+### Scene Configuration
+- **Environment Name**: `vla_training_world`
+- **Description**: A residential environment with kitchen, living room, and bedroom areas
+- **Physics Settings**: Realistic gravity, friction, and collision detection
+- **Lighting**: Dynamic lighting with day/night cycle simulation
+
+### Robot Configuration
+- **Robot Model**: Simulated humanoid robot with manipulator arms
+- **Sensors**: RGB camera, depth sensor, IMU, joint position sensors
+- **Actuators**: Joint controllers for locomotion and manipulation
+- **Navigation**: Compatible with Nav2 for path planning
+
+### Object Definitions
+- **Movable Objects**: Cups, balls, books, tools
+- **Fixed Objects**: Tables, chairs, walls, doors
+- **Interactive Objects**: Drawers, cabinets, light switches
+
+## Configuration File Structure
+
+The simulation environment configuration is stored in `frontend/static/module-4-assets/configs/simulation.json`:
+
+```json
+{
+  "environment": {
+    "name": "vla_training_world",
+    "description": "Residential environment for VLA training",
+    "physics": {
+      "gravity": -9.81,
+      "friction": 0.5,
+      "solver_iterations": 10
+    },
+    "lighting": {
+      "ambient_intensity": 0.5,
+      "sun_direction": [-0.5, -1.0, -0.5],
+      "time_of_day": "noon"
+    }
+  },
+  "robot": {
+    "model": "humanoid_robot",
+    "start_position": [0.0, 0.0, 0.0],
+    "start_orientation": [0.0, 0.0, 0.0, 1.0],
+    "sensors": [
+      {
+        "type": "rgb_camera",
+        "position": [0.1, 0.0, 1.5],
+        "resolution": [640, 480],
+        "fov": 60
+      },
+      {
+        "type": "depth_sensor",
+        "position": [0.1, 0.0, 1.5],
+        "resolution": [640, 480],
+        "fov": 60
+      },
+      {
+        "type": "imu",
+        "position": [0.0, 0.0, 0.8],
+        "noise": 0.01
+      }
+    ],
+    "actuators": [
+      {
+        "type": "joint_controller",
+        "joints": ["left_arm", "right_arm", "left_leg", "right_leg"],
+        "max_velocity": 1.0
+      }
+    ]
+  },
+  "objects": {
+    "movable": [
+      {
+        "name": "red_ball",
+        "type": "sphere",
+        "position": [2.0, 1.0, 0.5],
+        "color": [1.0, 0.0, 0.0],
+        "mass": 0.1
+      },
+      {
+        "name": "blue_cup",
+        "type": "cylinder",
+        "position": [1.5, -0.5, 0.5],
+        "color": [0.0, 0.0, 1.0],
+        "mass": 0.2
+      }
+    ],
+    "fixed": [
+      {
+        "name": "kitchen_table",
+        "type": "box",
+        "position": [2.0, 0.0, 0.4],
+        "dimensions": [1.0, 0.8, 0.8],
+        "color": [0.8, 0.6, 0.4]
+      },
+      {
+        "name": "sofa",
+        "type": "box",
+        "position": [-1.5, 1.0, 0.3],
+        "dimensions": [2.0, 0.8, 0.6],
+        "color": [0.3, 0.3, 0.3]
+      }
+    ]
+  },
+  "navigation_goals": [
+    {
+      "name": "kitchen",
+      "position": [2.0, 0.0, 0.0],
+      "orientation": [0.0, 0.0, 0.0, 1.0],
+      "radius": 0.5
+    },
+    {
+      "name": "living_room",
+      "position": [0.0, 1.0, 0.0],
+      "orientation": [0.0, 0.0, 0.0, 1.0],
+      "radius": 0.5
+    },
+    {
+      "name": "bedroom",
+      "position": [-2.0, -1.0, 0.0],
+      "orientation": [0.0, 0.0, 0.0, 1.0],
+      "radius": 0.5
+    }
+  ]
+}
+```
+
+## Integration with VLA System
+
+### ROS 2 Bridge
+The simulation environment connects to the VLA system through a ROS 2 bridge that:
+- Publishes sensor data to ROS 2 topics
+- Subscribes to action commands from the VLA node
+- Synchronizes simulation time with ROS time
+
+### Perception Pipeline
+- RGB and depth images are processed through Isaac ROS perception nodes
+- Object detection identifies named objects in the scene
+- Pose estimation provides accurate positioning for manipulation
+
+### Navigation Integration
+- Nav2 path planner operates on the simulated environment
+- Local and global costmaps reflect the virtual world
+- Robot pose is updated in real-time based on simulation physics
+
+## Multi-User Support
+
+The simulation environment supports up to 50 concurrent users through:
+- Isolated session management
+- Separate environment instances per user
+- Resource allocation and performance optimization
+
+## Performance Considerations
+
+### Optimization Settings
+- Rendering quality balanced for performance and visual fidelity
+- Level of detail (LOD) scaling for distant objects
+- Occlusion culling to reduce unnecessary rendering
+
+### Resource Management
+- Memory allocation optimized for 32GB RAM workstations
+- GPU usage optimized for RTX-class hardware
+- CPU scheduling for real-time physics simulation

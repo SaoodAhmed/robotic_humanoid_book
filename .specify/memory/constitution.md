@@ -1,55 +1,46 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+Version change: N/A → 1.0.0
+Modified principles: N/A (new constitution)
+Added sections: Core Principles for Physical AI & Humanoid Robotics textbook
+Removed sections: N/A
+Templates requiring updates:
+  - .specify/templates/plan-template.md ✅ updated
+  - .specify/templates/spec-template.md ✅ updated
+  - .specify/templates/tasks-template.md ✅ updated
+  - .specify/templates/commands/sp.constitution.md ✅ updated
+Follow-up TODOs: None
+-->
+
+# Physical AI & Humanoid Robotics Textbook Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### Technical Accuracy
+All technical explanations must be correct and consistent with ROS 2, Gazebo, Unity, NVIDIA Isaac, and VLA documentation; All hardware recommendations must be validated for current compatibility (Jetson, RealSense, Unitree, etc.)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### Pedagogical Clarity
+Content must be optimized for educational material (Flesch-Kincaid grade 10–14); Include diagrams, tables, and code samples where beneficial; Accessibility for students with varying levels of prior robotics experience
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### Coherence and Structure
+Content must maintain coherence across modules (ROS 2, Gazebo, Unity, Isaac, VLA); All content must be structured for Docusaurus (MDX format, clean headings, navigable sidebar); All module descriptions must include: concepts, tools, student tasks, and learning outcomes
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### Practical Relevance
+Content must focus on practical relevance to real-world humanoid robotics workflows; Students must be able to follow the book to set up ROS 2, Gazebo, Unity, NVIDIA Isaac, and Jetson workflows without confusion
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### Content Standards
+Zero plagiarism; all external descriptions must be original wording; Hardware pricing must not include fictional data; only general ranges allowed; Writing quality optimized for educational material
 
-### [PRINCIPLE_6_NAME]
+### Deployment and Format Compliance
+Writing format: MDX files compatible with Docusaurus v3+; Deployment-ready folder structure for GitHub Pages; Visuals: Provide textual placeholders for diagrams, figures, and flowcharts
 
+## Content and Technical Constraints
+Full textbook length: Equivalent of 120–180 pages of instructional content; Hardware/software recommendations must be realistic, actionable, and coherent; Textbook can be directly placed inside a Docusaurus project and rendered without modification
 
-[PRINCIPLE__DESCRIPTION]
-
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
-
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Success Criteria and Course Flow
+Entire course flows from fundamentals → simulation → perception → humanoid control → VLA → capstone; The textbook is suitable for use in a 12–15 week university course; Final result is logically complete, technically accurate, and ready for deployment as a public course textbook
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+This constitution governs all development of the Physical AI & Humanoid Robotics textbook; All content must adhere to Docusaurus MDX format requirements; All technical information must be verified against official documentation sources; Course structure must follow the logical progression from fundamentals to capstone project; Compliance with educational standards (Flesch-Kincaid grade 10-14) is mandatory; All diagrams and visuals must have appropriate textual placeholders for accessibility
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2025-12-11 | **Last Amended**: 2025-12-11

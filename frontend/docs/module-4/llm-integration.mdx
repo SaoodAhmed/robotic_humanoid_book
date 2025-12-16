@@ -1,0 +1,228 @@
+---
+sidebar_position: 5
+---
+
+# LLM Integration Utilities
+
+## Overview
+This document describes the utilities for integrating large language models (LLMs) into the Vision-Language-Action (VLA) system. The LLM serves as the intelligence layer that translates natural language commands into structured action sequences.
+
+## OpenAI API Configuration
+
+### API Key Management
+The system uses OpenAI API keys stored securely in environment variables:
+- `OPENAI_API_KEY`: The primary API key for accessing OpenAI services
+- `OPENAI_ORGANIZATION`: Optional organization ID for rate limiting
+
+### Model Selection
+The system supports multiple OpenAI models:
+- `gpt-4-turbo`: Recommended for complex action planning
+- `gpt-3.5-turbo`: Suitable for simpler commands
+- `gpt-4`: High accuracy but slower response times
+
+## Core Utilities
+
+### Action Plan Generation
+
+```python
+import openai
+import json
+import logging
+
+class LLMInterface:
+    def __init__(self, config):
+        self.config = config
+        openai.api_key = config.get('openai_api_key', '')
+        self.model = config.get('openai_model', 'gpt-4-turbo')
+        self.temperature = config.get('temperature', 0.3)
+        self.max_tokens = config.get('max_tokens', 1000)
+
+    def generate_action_plan(self, command_text, robot_capabilities=None, environment_context=None):
+        """
+        Generate an action plan from a natural language command using LLM
+        """
+        try:
+            # Build the prompt with context
+            prompt = self._build_prompt(command_text, robot_capabilities, environment_context)
+
+            # Call the OpenAI API
+            response = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+
+            # Extract and parse the action plan
+            plan_text = response.choices[0].message['content']
+            return self._parse_action_plan(plan_text)
+
+        except Exception as e:
+            logging.error(f"Error generating action plan: {e}")
+            return None
+
+    def _build_prompt(self, command_text, robot_capabilities, environment_context):
+        """
+        Build a structured prompt for the LLM
+        """
+        prompt = f"Convert the following natural language command into a sequence of ROS 2 actions:\n"
+        prompt += f"Command: \"{command_text}\"\n\n"
+
+        if robot_capabilities:
+            prompt += f"Robot capabilities: {robot_capabilities}\n\n"
+
+        if environment_context:
+            prompt += f"Environment context: {environment_context}\n\n"
+
+        prompt += "Respond with a JSON array of actions. Each action should be an object with 'type' and 'parameters'.\n"
+        prompt += "Example actions: navigate_to_pose, detect_object, grasp_object, release_object, etc.\n"
+        prompt += "Ensure the action sequence is feasible and accounts for potential obstacles."
+
+        return prompt
+
+    def _get_system_prompt(self):
+        """
+        Get the system prompt to guide the LLM's behavior
+        """
+        return """
+        You are an expert robotics planner. Your task is to convert natural language commands into structured action sequences for a humanoid robot in a simulated environment.
+
+        Rules:
+        1. Always return a valid JSON array of action objects
+        2. Each action must have 'type' and 'parameters' properties
+        3. Use ROS 2 compatible action types: navigate_to_pose, detect_object, grasp_object, release_object, rotate, speak
+        4. Include error handling and validation in your plans
+        5. Account for the robot's physical limitations
+        6. Consider environmental constraints and obstacles
+        7. If the command is ambiguous, ask for clarification or make reasonable assumptions
+        """
+
+    def _parse_action_plan(self, plan_text):
+        """
+        Parse the LLM response into a structured action plan
+        """
+        import re
+        import json
+
+        # Extract JSON from response
+        json_match = re.search(r'\[.*\]', plan_text, re.DOTALL)
+        if json_match:
+            try:
+                action_plan = json.loads(json_match.group())
+                return action_plan
+            except json.JSONDecodeError:
+                logging.error("Failed to parse JSON from LLM response")
+                return None
+        else:
+            # If no JSON found, try to extract actions from text
+            return self._extract_actions_from_text(plan_text)
+
+    def _extract_actions_from_text(self, plan_text):
+        """
+        Fallback method to extract actions from text if JSON parsing fails
+        """
+        # Implementation for text-based action extraction
+        # This is a simplified example
+        lines = plan_text.split('\n')
+        actions = []
+
+        for line in lines:
+            if 'navigate' in line.lower():
+                actions.append({
+                    'type': 'navigate_to_pose',
+                    'parameters': {'target_pose': self._extract_pose(line)}
+                })
+            elif 'grasp' in line.lower() or 'pick' in line.lower():
+                actions.append({
+                    'type': 'grasp_object',
+                    'parameters': {'object_name': self._extract_object_name(line)}
+                })
+            elif 'detect' in line.lower() or 'find' in line.lower():
+                actions.append({
+                    'type': 'detect_object',
+                    'parameters': {'object_type': self._extract_object_name(line)}
+                })
+
+        return actions if actions else None
+
+    def _extract_pose(self, text):
+        """
+        Extract pose information from text (simplified)
+        """
+        # In a real implementation, this would use more sophisticated NLP
+        return {'x': 0.0, 'y': 0.0, 'z': 0.0, 'qx': 0.0, 'qy': 0.0, 'qz': 0.0, 'qw': 1.0}
+
+    def _extract_object_name(self, text):
+        """
+        Extract object name from text (simplified)
+        """
+        # In a real implementation, this would use more sophisticated NLP
+        return "unknown_object"
+
+    def validate_action_plan(self, action_plan, robot_capabilities):
+        """
+        Validate that the action plan is executable by the robot
+        """
+        if not action_plan or not isinstance(action_plan, list):
+            return False, "Action plan must be a list of actions"
+
+        for i, action in enumerate(action_plan):
+            if not isinstance(action, dict):
+                return False, f"Action {i} must be an object"
+
+            if 'type' not in action:
+                return False, f"Action {i} must have a 'type' property"
+
+            if 'parameters' not in action:
+                return False, f"Action {i} must have a 'parameters' property"
+
+            # Check if action type is supported by robot
+            if action['type'] not in robot_capabilities.get('supported_actions', []):
+                return False, f"Action {action['type']} not supported by robot"
+
+        return True, "Action plan is valid"
+```
+
+## Safety and Guardrails
+
+### Command Validation
+- Input sanitization to prevent prompt injection attacks
+- Command length limits to prevent resource exhaustion
+- Content filtering to prevent unsafe actions
+
+### Action Validation
+- Verification that planned actions are within robot capabilities
+- Collision detection and path feasibility checks
+- Validation against environmental constraints
+
+### Rate Limiting
+- API call rate limiting to prevent exceeding usage quotas
+- User-specific rate limiting for multi-user environments
+- Fallback mechanisms when API limits are reached
+
+## Error Handling
+
+### LLM Unavailability
+- Fallback to rule-based action planning
+- Graceful degradation of functionality
+- User notification of service unavailability
+
+### Invalid Action Plans
+- Plan validation before execution
+- Error recovery and retry mechanisms
+- Logging and debugging information
+
+## Performance Optimization
+
+### Caching
+- Cache frequently requested action plans
+- Store successful command-action mappings
+- Implement cache invalidation strategies
+
+### Prompt Engineering
+- Optimized prompts for better response quality
+- Context compression for longer interactions
+- Few-shot learning examples for better accuracy

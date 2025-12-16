@@ -1,0 +1,201 @@
+---
+sidebar_position: 9
+---
+
+# Lab 1: Voice-to-Text Command Pipeline Integration
+
+## Overview
+In this lab, you will implement and test the voice-to-text command pipeline for the Vision-Language-Action (VLA) system. This foundational lab covers the core capability of converting spoken commands into structured text that can be processed by subsequent components.
+
+## Learning Objectives
+By the end of this lab, you will be able to:
+- Set up the speech recognition system with proper configuration
+- Test voice activation and command recognition
+- Validate speech-to-text conversion accuracy
+- Measure and optimize processing latency
+- Troubleshoot common voice recognition issues
+
+## Prerequisites
+- Completion of Modules 1-3
+- ROS 2 Humble Hawksbill installed
+- Python 3.10+ with required dependencies
+- Microphone for voice input
+- OpenAI API key configured
+- Isaac Sim environment from Module 3
+
+## Lab Setup
+
+### 1. Environment Configuration
+First, ensure your environment is properly configured:
+
+```bash
+# Navigate to the humanoid robotic book directory
+cd ~/humanoid_robotic_book
+
+# Install required Python dependencies
+pip install -r requirements.txt
+
+# Source ROS 2 environment
+source /opt/ros/humble/setup.bash
+source install/setup.bash  # If you have built packages locally
+```
+
+### 2. Configuration File Setup
+Create a configuration file for the VLA system:
+
+```json
+{
+  "vla_system": {
+    "voice_activation_keyword": "hey robot",
+    "stt_engine": "google",
+    "openai_model": "gpt-4-turbo",
+    "confidence_threshold": 0.5,
+    "max_recovery_attempts": 3,
+    "response_timeout": 30,
+    "latency_target": 200,
+    "supported_languages": ["en-US"],
+    "audio": {
+      "sample_rate": 16000,
+      "chunk_size": 1024,
+      "device_index": null
+    },
+    "ros2": {
+      "namespace": "vla",
+      "action_servers": {
+        "navigation": "/navigate_to_pose",
+        "manipulation": "/manipulation_controller",
+        "perception": "/perception_pipeline"
+      }
+    }
+  }
+}
+```
+
+Save this as `config/vla_config.json`.
+
+### 3. Environment Variables
+Set up your OpenAI API key:
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key_here"
+```
+
+## Lab Exercises
+
+### Exercise 1: Basic Voice Command Recognition
+
+1. Launch the Isaac Sim environment from Module 3:
+   ```bash
+   ros2 launch isaac_sim_module3.launch.py
+   ```
+
+2. In a new terminal, start the VLA node:
+   ```bash
+   ros2 run vla_module4 vla_node.py
+   ```
+
+3. Say the activation phrase "hey robot" followed by a simple command like "Go to the kitchen"
+
+4. Observe the speech-to-text conversion in the terminal output
+
+5. Verify that the recognized text is published to the `/vla/voice_command` topic:
+   ```bash
+   ros2 topic echo /vla/voice_command
+   ```
+
+### Exercise 2: Confidence Scoring Analysis
+
+1. Test the system with clear commands in a quiet environment
+2. Record the confidence scores for successful recognitions
+3. Gradually introduce background noise and observe how confidence scores change
+4. Verify that commands with confidence below 0.5 are rejected
+
+### Exercise 3: Latency Measurement
+
+1. Use the latency measurement tools to verify processing is under 200ms:
+   ```bash
+   python -c "from frontend.docs.module_4.voice_command_processing import LatencyOptimizer; opt = LatencyOptimizer(); print(f'Average latency: {opt.get_average_latency()*1000:.1f}ms')"
+   ```
+
+2. Test with different command lengths and complexity
+3. Document any instances where latency exceeds the target
+
+### Exercise 4: Noise Filtering Test
+
+1. Test the system in various noise conditions:
+   - Quiet room
+   - Moderate background noise (fan, computer)
+   - High background noise (music, conversation)
+
+2. Observe how the noise filtering adapts to different conditions
+3. Note any degradation in recognition accuracy with high noise levels
+
+### Exercise 5: Error Recovery
+
+1. Intentionally provide unclear or low-confidence commands
+2. Observe how the system handles these errors
+3. Test the recovery mechanisms by providing valid commands after errors
+
+## Validation Scenarios
+
+### Test Scenario 1: "Go to the kitchen"
+1. Say: "hey robot, go to the kitchen"
+2. Expected result: System recognizes "go to the kitchen" with confidence > 0.5
+3. Verify: Command is published to `/vla/voice_command` topic
+4. Expected confidence: > 0.7 for clear speech in quiet environment
+
+### Test Scenario 2: Background Noise Tolerance
+1. Play moderate background noise (fan or white noise)
+2. Say: "hey robot, find the red ball"
+3. Expected result: System recognizes command despite background noise
+4. Verify: Confidence remains above threshold (0.5)
+
+### Test Scenario 3: Activation Phrase Detection
+1. Say various phrases without the activation phrase
+2. Expected result: System does not enter listening mode
+3. Say activation phrase: "hey robot"
+4. Expected result: System transitions to LISTENING state
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Issue**: Voice activation not working
+- Solution: Check microphone permissions and ensure it's set as default input device
+- Solution: Verify the activation phrase is being spoken clearly
+
+**Issue**: High latency (>200ms)
+- Solution: Check network connectivity for cloud-based STT engines
+- Solution: Verify system resources (CPU, memory) are sufficient
+
+**Issue**: Low confidence scores
+- Solution: Move closer to microphone or increase microphone sensitivity
+- Solution: Reduce background noise in the environment
+- Solution: Try different STT engine in configuration
+
+**Issue**: No audio input detected
+- Solution: Verify microphone is properly connected and functional
+- Solution: Check system audio settings and input device selection
+
+## Lab Report Requirements
+
+For this lab, submit a report including:
+
+1. **Setup Summary**: Document your configuration and any modifications made
+2. **Performance Results**: Include confidence scores and latency measurements from each exercise
+3. **Error Analysis**: Describe any errors encountered and how they were resolved
+4. **Optimization Observations**: Note any optimizations that improved performance
+5. **Challenges**: Describe any significant challenges faced during implementation
+
+## Assessment Criteria
+
+- [ ] Voice activation successfully detected in 90%+ of attempts
+- [ ] Speech-to-text conversion accuracy > 85% in quiet environment
+- [ ] Confidence scores correctly reflect recognition quality
+- [ ] Latency consistently under 200ms
+- [ ] Noise filtering effectively improves recognition in noisy conditions
+- [ ] Error recovery mechanisms function properly
+
+## Next Steps
+
+After completing this lab, you should have a solid foundation in voice command processing. The next lab will build on this by integrating the LLM-based action planning system, connecting your voice recognition pipeline to the robot's action execution capabilities.

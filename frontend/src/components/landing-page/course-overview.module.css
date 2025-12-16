@@ -1,0 +1,151 @@
+/* Beautiful Course Overview Styles */
+
+.courseOverview {
+  padding: 5rem 0;
+  background-color: #f8f9fa;
+}
+
+.sectionTitle {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  color: #1a237e;
+  position: relative;
+  text-align: center;
+}
+
+.sectionTitle::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(to right, #1565c0, #1565c0);
+  border-radius: 2px;
+}
+
+.sectionDescription {
+  font-size: 1.25rem;
+  color: #555;
+  margin-bottom: 3rem;
+  line-height: 1.7;
+}
+
+.featureCard {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  border-left: 4px solid #1565c0;
+  text-align: center;
+  height: 100%;
+}
+
+.featureCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+.icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.featureTitle {
+  font-size: 1.5rem;
+  color: #1a237e;
+  margin-bottom: 1rem;
+}
+
+.featureDescription {
+  color: #666;
+  line-height: 1.6;
+}
+
+/* Fade-in animations */
+.fadeInUp {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.delay1 {
+  animation-delay: 0.2s;
+}
+
+.delay2 {
+  animation-delay: 0.4s;
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subsectionTitle {
+  font-size: 1.5rem;
+  color: #1a237e;
+  margin-bottom: 1.5rem;
+}
+
+.audienceList, .prereqList {
+  list-style: none;
+  padding: 0;
+}
+
+.audienceItem, .prereqItem {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: flex-start;
+}
+
+.audienceItem:last-child, .prereqItem:last-child {
+  border-bottom: none;
+}
+
+.audienceItem::before, .prereqItem::before {
+  content: '✓';
+  color: #1565c0;
+  font-weight: bold;
+  margin-right: 0.75rem;
+  display: inline-block;
+  width: 1.5rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .courseOverview {
+    padding: 3rem 0;
+  }
+
+  .sectionTitle {
+    font-size: 2rem;
+  }
+
+  .featureCard {
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* Dark mode support */
+html[data-theme='dark'] .courseOverview {
+  background-color: #121826;
+}
+
+html[data-theme='dark'] .featureCard {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .sectionDescription {
+  color: #cbd5e1;
+}
+
+html[data-theme='dark'] .featureDescription {
+  color: #94a3b8;
+}

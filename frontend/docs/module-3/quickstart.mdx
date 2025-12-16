@@ -1,0 +1,516 @@
+---
+title: "Module 3 Quickstart Guide"
+sidebar_position: 2
+---
+
+# Module 3 Quickstart Guide: Isaac Sim to Isaac ROS to Nav2 Integration
+
+## Overview
+
+This quickstart guide provides the essential steps to set up and run the complete Isaac Sim → Isaac ROS → Nav2 pipeline for bipedal humanoid navigation. Follow these steps to get your humanoid robot navigating in simulated environments quickly.
+
+## Prerequisites
+
+Before starting, ensure you have:
+- Ubuntu 22.04 LTS with RTX GPU (RTX 3080 or better recommended)
+- Isaac Sim 2023.1+ installed
+- Isaac ROS packages built and installed
+- Nav2 packages installed
+- CUDA 12.0+ with appropriate drivers
+- VRAM: Minimum 16GB (24GB+ recommended)
+
+## Installation Steps
+
+### 1. Set Up Isaac ROS Workspace
+
+```bash
+# Create Isaac ROS workspace
+mkdir -p ~/isaac_ros_ws/src
+cd ~/isaac_ros_ws
+
+# Clone Isaac ROS packages (if not already done)
+git clone -b ros2-humble https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common.git src/isaac_ros_common
+git clone -b ros2-humble https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_visual_slam.git src/isaac_ros_visual_slam
+git clone -b ros2-humble https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag.git src/isaac_ros_apriltag
+git clone -b ros2-humble https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_occupancy_grid.git src/isaac_ros_occupancy_grid
+
+# Install dependencies
+rosdep install --from-paths src --ignore-src -r -y
+
+# Build workspace
+colcon build --symlink-install --packages-select \
+  isaac_ros_common \
+  isaac_ros_visual_slam \
+  isaac_ros_apriltag \
+  isaac_ros_occupancy_grid
+```
+
+### 2. Install Nav2 Packages
+
+```bash
+# Install Nav2 packages
+sudo apt update
+sudo apt install ros-humble-navigation2 ros-humble-nav2-bringup \
+  ros-humble-nav2-common ros-humble-nav2-gui-plugins \
+  ros-humble-nav2-map-server ros-humble-nav2-utils \
+  ros-humble-nav2-amcl ros-humble-nav2-controller-server \
+  ros-humble-nav2-planner-server ros-humble-nav2-recoveries \
+  ros-humble-nav2-rotation-shim-controller \
+  ros-humble-nav2-lifecycle-manager ros-humble-nav2-simple-commander \
+  ros-humble-nav2-behavior-tree ros-humble-nav2-velocity-smoother \
+  ros-humble-nav2-voxel-grid
+```
+
+### 3. Create Integration Package
+
+```bash
+# Create integration package
+cd ~/isaac_ros_ws/src
+ros2 pkg create --dependencies rclpy std_msgs geometry_msgs nav_msgs sensor_msgs \
+  nav2_msgs visualization_msgs --destination-directory my_nav2_integration
+
+# Build the new package
+cd ~/isaac_ros_ws
+colcon build --packages-select my_nav2_integration
+```
+
+## Configuration Setup
+
+### 1. Create Isaac ROS Configuration
+
+Create the Isaac ROS VSLAM configuration file:
+
+```yaml
+# ~/isaac_ros_ws/src/my_nav2_integration/config/isaac_vslam_params.yaml
+/**:
+  ros__parameters:
+    # Enable IMU fusion for better pose estimation
+    enable_imu_fusion: false  # Set to true if using IMU data
+    # Use simulation time
+    use_sim_time: true
+    # Input topics from Isaac Sim
+    image_left_topic: "/humanoid_robot/rgb_camera_left/image_raw"
+    image_right_topic: "/humanoid_robot/rgb_camera_right/image_raw"
+    camera_info_left_topic: "/humanoid_robot/rgb_camera_left/camera_info"
+    camera_info_right_topic: "/humanoid_robot/rgb_camera_right/camera_info"
+    # Output topics for Nav2
+    pose_topic: "/isaac_ros/vslam/pose"
+    twist_topic: "/isaac_ros/vslam/twist"
+    # Tracking parameters
+    tracking_frame: "humanoid_robot/rgb_camera_left_optical_frame"
+    # Optimization parameters
+    optimize_map_every_n_poses: 10
+    # Map parameters
+    min_num_stereo_features: 10
+    # Performance parameters
+    max_num_landmarks: 1000
+    max_map_size: 1000
+```
+
+### 2. Create Humanoid-Specific Nav2 Configuration
+
+Create the Nav2 parameters for humanoid navigation:
+
+```yaml
+# ~/isaac_ros_ws/src/my_nav2_integration/config/nav2_params_humanoid.yaml
+amcl:
+  ros__parameters:
+    use_sim_time: True
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    max_beams: 60
+    max_particles: 3000
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_enabled: true
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.2
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: True
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    enable_groot_monitoring: True
+    groot_zmq_publisher_port: 1666
+    groot_zmq_server_port: 1667
+    default_nav_through_poses_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
+    default_navigate_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
+    plugin_lib_names:
+    - nav2_compute_path_to_pose_action_bt_node
+    - nav2_compute_path_through_poses_action_bt_node
+    - nav2_smooth_path_action_bt_node
+    - nav2_follow_path_action_bt_node
+    - nav2_spin_action_bt_node
+    - nav2_wait_action_bt_node
+    - nav2_back_up_action_bt_node
+    - nav2_drive_on_heading_bt_node
+    - nav2_clear_costmap_service_bt_node
+    - nav2_is_stuck_condition_bt_node
+    - nav2_goal_reached_condition_bt_node
+    - nav2_goal_updated_condition_bt_node
+    - nav2_globally_updated_goal_condition_bt_node
+    - nav2_is_path_valid_condition_bt_node
+    - nav2_initial_pose_received_condition_bt_node
+    - nav2_reinitialize_global_localization_service_bt_node
+    - nav2_rate_controller_bt_node
+    - nav2_cross_doorway_condition_bt_node
+    - nav2_is_battery_low_condition_bt_node
+    - nav2_navigate_through_poses_action_bt_node
+    - nav2_navigate_to_pose_action_bt_node
+    - nav2_remove_passed_goals_action_bt_node
+    - nav2_planner_selector_bt_node
+    - nav2_controller_selector_bt_node
+    - nav2_goal_checker_selector_bt_node
+    - nav2_controller_cancel_bt_node
+    - nav2_path_longer_on_approach_bt_node
+    - nav2_wait_cancel_bt_node
+    - nav2_spin_cancel_bt_node
+    - nav2_back_up_cancel_bt_node
+    - nav2_drive_on_heading_cancel_bt_node
+
+controller_server:
+  ros__parameters:
+    use_sim_time: True
+    controller_frequency: 10.0  # Lower for humanoid stability
+    min_x_velocity_threshold: 0.05  # Higher for humanoid movement
+    min_y_velocity_threshold: 0.1
+    min_theta_velocity_threshold: 0.05
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugin: "goal_checker"
+    controller_plugins: ["FollowPath"]
+
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 15  # Reduced for real-time constraints
+      model_dt: 0.1   # Increased for stability
+      batch_size: 500 # Reduced for computational efficiency
+      vx_std: 0.3
+      vy_std: 0.4
+      wz_std: 0.4
+      vx_max: 0.5  # Reduced for humanoid stability
+      vx_min: -0.2
+      vy_max: 0.3
+      vy_min: -0.3
+      wz_max: 0.5  # Reduced for stability
+      wz_min: -0.5
+      iteration_count: 1
+      prune_distance: 1.0  # Reduced for closer obstacle monitoring
+      transform_tolerance: 0.2
+      alpha: 0.0
+      beta: 0.8
+      gamma: 0.2
+      motion_model: "LeggedRobot"  # Custom motion model for bipedal
+      trajectory_visualization_plugin: "nav2_trajectory_utils::TrajectoryViz"
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.3  # Adjusted for humanoid step size
+      movement_time_allowance: 15.0
+
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.3  # Increased for humanoid precision limits
+      yaw_goal_tolerance: 0.3
+      stateful: True
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: True
+      rolling_window: True
+      width: 8  # Increased for humanoid step planning
+      height: 8
+      resolution: 0.05  # Fine resolution for foot placement
+      robot_radius: 0.4  # Larger for humanoid safety
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.5  # Increased for safety
+        inflation_radius: 0.7  # Increased for humanoid step planning
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.2
+        z_voxels: 10
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 4.0  # Extended for planning ahead
+          raytrace_min_range: 0.0
+          obstacle_max_range: 3.0  # Extended for humanoid awareness
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 0.5
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: True
+      robot_radius: 0.4
+      resolution: 0.05
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 4.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.0  # Increased for humanoid path planning
+
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 0.5  # Lower for complex planning
+    use_sim_time: True
+    planner_plugins: ["GridBased"]
+
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.8  # Increased for humanoid flexibility
+      use_astar: true  # Use A* for better path quality
+      allow_unknown: true
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: True
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 0.05  # More precise smoothing for humanoid
+      max_its: 500
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+
+    spin:
+      plugin: "nav2_behaviors::Spin"
+      spin_dist: 1.57  # Adjusted for humanoid turning
+      linear_x_threshold: 0.1
+      linear_y_threshold: 0.1
+      angular_z_threshold: 0.1
+
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+      backup_dist: 0.3  # Increased for humanoid stability
+      backup_speed: 0.05
+
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+      drive_on_heading_angle_tol: 0.5  # Reduced for better accuracy
+      drive_on_heading_forward_dist: 0.5
+      drive_on_heading_speed: 0.15  # Reduced for stability
+
+    wait:
+      plugin: "nav2_behaviors::Wait"
+      wait_duration: 1.0
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: False
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: True
+      # Longer pause for humanoid stability
+      waypoint_pause_duration: 300
+```
+
+## Launch the Complete Pipeline
+
+### 1. Create Integration Launch File
+
+```xml
+<!-- ~/isaac_ros_ws/src/my_nav2_integration/launch/isaac_ros_nav2_integration.launch.xml -->
+<launch>
+  <!-- Arguments -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="isaac_vslam_config" default="$(find-pkg-share my_nav2_integration)/config/isaac_vslam_params.yaml"/>
+  <arg name="nav2_config" default="$(find-pkg-share my_nav2_integration)/config/nav2_params_humanoid.yaml"/>
+  <arg name="map_file" default=""/>
+
+  <!-- Isaac ROS Visual SLAM Node -->
+  <node pkg="isaac_ros_visual_slam" exec="visual_slam_node" name="visual_slam" namespace="isaac_ros" output="screen">
+    <param from="$(var isaac_vslam_config)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+
+  <!-- Isaac ROS Occupancy Grid Node -->
+  <node pkg="isaac_ros_occupancy_grid" exec="occupancy_grid_node" name="occupancy_grid" namespace="isaac_ros" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="resolution" value="0.05"/>
+    <param name="occupancy_grid_topic_name" value="/isaac_ros/occupancy_grid"/>
+  </node>
+
+  <!-- Nav2 Stack -->
+  <include file="$(find-pkg-share nav2_bringup)/launch/navigation_launch.py">
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="params_file" value="$(var nav2_config)"/>
+    <arg name="autostart" value="true"/>
+    <arg name="map" value="$(var map_file)"/>
+  </include>
+
+  <!-- Static TF publisher for Isaac Sim to ROS coordinate frames -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="isaac_sim_to_ros_tf" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="x" value="0.0"/>
+    <param name="y" value="0.0"/>
+    <param name="z" value="0.0"/>
+    <param name="qx" value="0.0"/>
+    <param name="qy" value="0.0"/>
+    <param name="qz" value="0.0"/>
+    <param name="qw" value="1.0"/>
+    <param name="frame_id" value="odom"/>
+    <param name="child_frame_id" value="base_link"/>
+  </node>
+
+  <!-- RViz for visualization -->
+  <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d $(find-pkg-share nav2_bringup)/rviz/nav2_default_view.rviz" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+  </node>
+</launch>
+```
+
+### 2. Launch the Complete System
+
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Launch the complete Isaac ROS-Nav2 integration
+ros2 launch my_nav2_integration isaac_ros_nav2_integration.launch.xml use_sim_time:=true
+
+# In another terminal, send a navigation goal
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: 'map'}, pose: {position: {x: 1.0, y: 1.0, z: 0.0}, orientation: {w: 1.0}}}}"
+```
+
+## Verification Steps
+
+### 1. Check System Status
+
+```bash
+# Verify Isaac ROS nodes are running
+ros2 component list
+
+# Check Isaac ROS topics
+ros2 topic list | grep isaac
+
+# Check Nav2 topics
+ros2 topic list | grep nav
+
+# Monitor TF tree
+ros2 run tf2_tools view_frames
+```
+
+### 2. Validate Integration
+
+```bash
+# Check Isaac ROS pose estimation
+ros2 topic echo /isaac_ros/vslam/pose --field pose.position
+
+# Monitor navigation status
+ros2 topic echo /local_plan
+
+# Check localization quality
+ros2 topic echo /amcl_pose --field pose.pose.position
+```
+
+## Troubleshooting Common Issues
+
+### Issue 1: Poor Localization
+- Verify Isaac Sim scene has sufficient visual features
+- Check camera calibration parameters
+- Ensure proper lighting conditions in simulation
+
+### Issue 2: Navigation Failures
+- Verify costmap inflation parameters are appropriate for humanoid size
+- Check that robot footprint accounts for bipedal kinematics
+- Ensure sufficient clearance for humanoid navigation
+
+### Issue 3: Performance Issues
+- Reduce Isaac ROS feature count if GPU resources are limited
+- Lower Nav2 update frequencies for better performance
+- Check that use_sim_time is properly synchronized
+
+## Next Steps
+
+After completing this quickstart:
+1. Proceed to Lab 1: Isaac Sim Scene Creation & Synthetic Data Export
+2. Continue with Lab 2: Isaac ROS VSLAM Pipeline
+3. Complete Lab 3: Nav2 Integration and Bipedal Path Planning
+4. Experiment with different environments and navigation goals
+
+This quickstart provides the foundation for the complete Isaac Sim → Isaac ROS → Nav2 pipeline. For detailed instructions on each component, refer to the specific lab exercises in this module.

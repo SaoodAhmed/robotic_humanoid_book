@@ -1,0 +1,360 @@
+---
+sidebar_position: 28
+---
+
+# Quickstart Guide for Module 4: Vision-Language-Action (VLA)
+
+## Overview
+
+This quickstart guide will help you set up and run the Vision-Language-Action (VLA) system for Module 4. The system enables voice commands to control a simulated humanoid robot through speech recognition, LLM-based planning, and ROS 2 action execution.
+
+## Prerequisites
+
+Before starting, ensure you have the following requirements:
+
+### Hardware Requirements
+- **Operating System**: Ubuntu 22.04 LTS
+- **Processor**: Multi-core processor (Intel i7 or AMD Ryzen equivalent)
+- **Memory**: 32 GB RAM recommended (minimum 16 GB)
+- **Graphics**: RTX-class GPU (RTX 3080 or higher recommended)
+- **Storage**: 100 GB free space
+- **Audio**: Microphone for voice input
+
+### Software Requirements
+- **ROS 2**: Humble Hawksbill (installed and sourced)
+- **Isaac Sim**: Latest version (from Module 3)
+- **Python**: 3.10 or higher
+- **OpenAI API Key**: For LLM integration
+- **Docker**: If running in containerized environment
+
+### Network Requirements
+- Internet connection for OpenAI API access
+- Stable connection recommended for simulation streaming
+
+## Setup Instructions
+
+### 1. Clone and Setup Repository
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/humanoid-robotic-book.git
+cd humanoid-robotic-book
+
+# Navigate to the project directory
+cd ~/humanoid_robotic_book
+```
+
+### 2. Install Python Dependencies
+
+```bash
+# Create and activate virtual environment
+python3 -m venv vla_env
+source vla_env/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install additional VLA-specific dependencies
+pip install SpeechRecognition openai pyaudio rospy ros2 numpy requests
+```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Create .env file
+touch .env
+
+# Add the following content to .env
+```
+
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4-turbo
+
+# Voice Configuration
+VOICE_ACTIVATION_KEYWORD="hey robot"
+STT_ENGINE=google
+CONFIDENCE_THRESHOLD=0.5
+
+# System Configuration
+LATENCY_TARGET=200
+MAX_RECOVERY_ATTEMPTS=3
+
+# ROS 2 Configuration
+ROS_NAMESPACE=vla
+```
+
+### 4. Set Up OpenAI API Key
+
+If you don't have an OpenAI API key:
+1. Go to [OpenAI Platform](https://platform.openai.com/)
+2. Create an account or sign in
+3. Navigate to "API Keys" in your dashboard
+4. Create a new secret key
+5. Add it to your `.env` file
+
+### 5. Configure Isaac Sim (from Module 3)
+
+Ensure Isaac Sim from Module 3 is properly configured:
+
+```bash
+# Source ROS 2 and Isaac Sim
+source /opt/ros/humble/setup.bash
+source /path/to/isaac_sim/setup.sh  # Adjust path as needed
+
+# Verify Isaac Sim installation
+python -c "import omni; print('Isaac Sim available')"
+```
+
+## Basic Usage
+
+### 1. Launch the Simulation Environment
+
+First, start the Isaac Sim environment from Module 3:
+
+```bash
+# Terminal 1: Launch Isaac Sim environment
+source /opt/ros/humble/setup.bash
+source /path/to/isaac_sim/setup.sh
+ros2 launch isaac_sim_module3.launch.py
+```
+
+### 2. Launch the VLA System
+
+In a new terminal, start the VLA system:
+
+```bash
+# Terminal 2: Start VLA node
+source /opt/ros/humble/setup.bash
+source ~/humanoid_robotic_book/vla_env/bin/activate
+
+# Navigate to the VLA module directory
+cd ~/humanoid_robotic_book
+
+# Run the VLA node
+python -m frontend.docs.module_4.vla_node
+```
+
+Alternatively, if you have a launch script:
+
+```bash
+# Launch VLA system
+ros2 launch vla_module4.launch.py
+```
+
+### 3. Voice Command Processing
+
+Once both systems are running:
+
+1. **Activate the system**: Say the activation phrase "hey robot"
+2. **Issue your command**: Speak your command clearly (e.g., "Go to the kitchen")
+3. **Observe processing**: Watch the terminal for processing logs
+4. **Monitor execution**: Observe the robot executing the action in simulation
+
+### 4. Manual Testing
+
+You can also test without voice by publishing directly to the command topic:
+
+```bash
+# Publish a test command directly
+ros2 topic pub /vla/command std_msgs/String "data: 'find the red ball and bring it to me'"
+
+# Monitor the state topic
+ros2 topic echo /vla/state
+
+# Monitor voice commands
+ros2 topic echo /vla/voice_command
+```
+
+## Lab Exercises
+
+### Lab 1: Voice-to-Text Pipeline Integration
+
+1. Navigate to the Lab 1 documentation:
+   ```bash
+   # View the lab documentation
+   less frontend/docs/module-4/lab-1-voice-text-pipeline.mdx
+   ```
+
+2. Follow the exercises to test speech recognition accuracy
+3. Experiment with different STT engines (online vs offline)
+4. Validate the "Go to the kitchen" scenario
+
+### Lab 2: Language-to-ROS Planning
+
+1. Access Lab 2 documentation:
+   ```bash
+   less frontend/docs/module-4/lab-2-language-ros-planning.mdx
+   ```
+
+2. Test LLM-generated action sequences
+3. Validate that natural language commands translate correctly to ROS 2 actions
+4. Verify the "Find the red ball and bring it to me" scenario
+
+### Lab 3: End-to-End VLA Capstone
+
+1. Access Lab 3 documentation:
+   ```bash
+   less frontend/docs/module-4/lab-3-vla-capstone.mdx
+   ```
+
+2. Execute complete voice command → plan → action scenarios
+3. Test error recovery and state management
+4. Complete the full capstone exercise
+
+## Key Components
+
+### VLA Node Architecture
+
+The VLA system consists of several key components:
+
+1. **Voice Input Handler**: Processes speech recognition and command validation
+2. **LLM Interface**: Communicates with OpenAI API for action planning
+3. **State Manager**: Maintains system state and handles transitions
+4. **Action Executor**: Coordinates ROS 2 action execution in simulation
+5. **Error Handler**: Manages recovery from failures
+
+### State Machine Transitions
+
+The system operates through the following states:
+- **IDLE**: Awaiting voice command
+- **LISTENING**: Capturing audio input
+- **PROCESSING**: Converting speech to text
+- **PLANNING**: Generating action sequence from LLM
+- **EXECUTING**: Running action sequence in simulation
+- **ERROR**: Error occurred, awaiting recovery decision
+- **RECOVERY**: Attempting to recover from error
+
+## Configuration Options
+
+### Adjusting Sensitivity
+
+To adjust voice activation sensitivity:
+
+```bash
+# Edit the configuration file
+nano frontend/static/module-4-assets/configs/config.json
+```
+
+Modify the following parameters:
+- `energy_threshold`: Adjust for quieter/louder environments
+- `pause_threshold`: Time of silence after phrase to consider complete
+- `phrase_threshold`: Minimum seconds for a phrase
+
+### Changing Activation Keyword
+
+To change the activation keyword:
+
+```bash
+# In the config file
+{
+  "vla_system": {
+    "voice_activation_keyword": "change to your preferred phrase"
+  }
+}
+```
+
+### Performance Tuning
+
+For different performance requirements:
+
+```bash
+# In config.json
+{
+  "vla_system": {
+    "latency_target": 200,  # Target response time in ms
+    "confidence_threshold": 0.5,  # Minimum confidence for processing
+    "max_recovery_attempts": 3  # Number of recovery attempts
+  }
+}
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Issue: Voice Not Detected
+**Symptoms**: System doesn't respond to activation phrase
+**Solutions**:
+- Check microphone permissions: `alsamixer`
+- Verify audio input levels: `pactl list sources`
+- Test microphone: `arecord -d 3 test.wav && aplay test.wav`
+- Increase energy threshold in config
+
+#### Issue: LLM Not Responding
+**Symptoms**: Commands are recognized but no action plan generated
+**Solutions**:
+- Check API key validity: `curl -H "Authorization: Bearer YOUR_KEY" https://api.openai.com/v1/models`
+- Verify network connectivity
+- Check rate limit status in OpenAI dashboard
+- Switch to a different OpenAI model in config
+
+#### Issue: Actions Failing in Simulation
+**Symptoms**: Action plan generated but robot doesn't execute properly
+**Solutions**:
+- Verify Isaac Sim is running and accessible
+- Check ROS 2 network connectivity between nodes
+- Validate robot configuration in simulation
+- Check for obstacles in navigation path
+
+#### Issue: High Latency
+**Symptoms**: Long delay between command and action
+**Solutions**:
+- Check internet connection for API calls
+- Monitor system resources: `htop`
+- Verify GPU utilization: `nvidia-smi`
+- Optimize STT engine settings
+
+### Diagnostic Commands
+
+```bash
+# Check ROS 2 nodes
+ros2 node list
+
+# Check ROS 2 topics
+ros2 topic list
+
+# Monitor VLA topics specifically
+ros2 topic echo /vla/state
+ros2 topic echo /vla/voice_command
+ros2 topic echo /vla/action_plan
+
+# Check system resources
+top
+nvidia-smi
+```
+
+### Logs and Monitoring
+
+```bash
+# Check VLA system logs
+journalctl -u vla-system.service -f
+
+# Or check application logs directly
+tail -f ~/humanoid_robotic_book/logs/vla_system.log
+```
+
+## Next Steps
+
+After completing this quickstart guide, proceed to the detailed module content to learn about:
+
+1. **Advanced VLA system architecture**: Deep dive into the component interactions
+2. **Customizing LLM prompts**: Learn to create specialized action planners
+3. **Extending the state machine**: Add new capabilities and states
+4. **Error handling and recovery**: Implement robust failure recovery strategies
+5. **Performance optimization**: Techniques for improving system responsiveness
+
+## Support Resources
+
+- **Documentation**: Complete documentation available in `frontend/docs/module-4/`
+- **Community**: Join our robotics community forum
+- **Issues**: Report bugs or issues on the GitHub repository
+- **Updates**: Check for updates to the VLA system regularly
+
+This quickstart guide provides the foundation for working with the Vision-Language-Action system. For advanced usage and customization, refer to the detailed documentation in the subsequent sections.

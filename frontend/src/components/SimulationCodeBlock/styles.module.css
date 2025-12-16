@@ -1,0 +1,36 @@
+.simulationCodeBlock {
+  margin: 2rem 0;
+}
+
+.codeBlockHeader {
+  margin-bottom: 0.5rem;
+}
+
+.codeBlockTitle {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.25rem;
+}
+
+.codeBlockDescription {
+  font-size: 0.9rem;
+  color: var(--ifm-color-secondary-darkest);
+  margin-bottom: 0.5rem;
+}
+
+.codeBlock {
+  border-radius: var(--ifm-global-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive design */
+@media (max-width: 996px) {
+  .codeBlockTitle {
+    font-size: 1rem;
+  }
+
+  .codeBlockDescription {
+    font-size: 0.85rem;
+  }
+}

@@ -1,0 +1,513 @@
+# Lighting and Physics Properties Setup
+
+## Overview
+
+Proper lighting and physics configuration is crucial for creating realistic and physically accurate simulation environments in Isaac Sim. This section covers the setup of various lighting types, material properties, and physics parameters that contribute to photorealistic scenes and accurate simulation behavior.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Configure different types of lighting for various scene requirements
+- Set up physically-based materials with appropriate properties
+- Configure physics properties for accurate simulation
+- Optimize lighting and physics for performance targets
+- Create realistic environments that support synthetic dataset generation
+
+## Lighting Configuration
+
+### Types of Lights in Isaac Sim
+
+Isaac Sim supports several types of lights, each with specific use cases:
+
+#### Distant Light
+Distant lights simulate light sources that are very far away, like the sun. They illuminate the entire scene with parallel rays.
+
+**Properties**:
+- **Intensity**: Brightness of the light (default: 500)
+- **Color**: Color of the light (default: white [1,1,1])
+- **Angle**: Angular size of the light source (affects softness of shadows)
+
+**Use Cases**:
+- Outdoor scenes
+- Primary illumination
+- Simulating sunlight
+
+```python
+# Create a distant light
+from omni.isaac.core.utils.prims import create_prim
+
+create_prim(
+    prim_path="/World/Lighting/Sun",
+    prim_type="DistantLight",
+    attributes={
+        "intensity": 1000,
+        "color": [0.9, 0.9, 0.8],  # Slightly warm light
+        "angle": 0.5
+    }
+)
+```
+
+#### Dome Light
+Dome lights provide environmental illumination using HDR textures, creating realistic global illumination.
+
+**Properties**:
+- **Texture**: HDR image file for environment lighting
+- **Intensity**: Overall brightness of the environment
+- **Color**: Tint for the environment light
+
+**Use Cases**:
+- Indoor scenes
+- Environmental lighting
+- Reflections and ambient illumination
+
+```python
+# Create a dome light with HDR texture
+create_prim(
+    prim_path="/World/Lighting/Environment",
+    prim_type="DomeLight",
+    attributes={
+        "intensity": 1.0,
+        "color": [0.2, 0.2, 0.2],
+        "texture:file": "path/to/environment.hdr"
+    }
+)
+```
+
+#### Rect Light
+Rectangular area lights provide soft, even illumination from a defined rectangular area.
+
+**Properties**:
+- **Width/Height**: Dimensions of the light area
+- **Intensity**: Brightness of the light
+- **Color**: Color of the light
+- **Enable Temperature**: Color temperature control
+
+**Use Cases**:
+- Studio lighting
+- Indoor lighting
+- Soft fill lighting
+
+```python
+# Create a rectangular area light
+create_prim(
+    prim_path="/World/Lighting/StudioLight",
+    prim_type="RectLight",
+    position=[0, 0, 3],
+    attributes={
+        "width": 2.0,
+        "height": 1.0,
+        "intensity": 800,
+        "color": [1.0, 1.0, 1.0]
+    }
+)
+```
+
+#### Spotlight
+Spotlights emit light in a cone shape with adjustable beam width and focus.
+
+**Properties**:
+- **Inner/Outer Cone Angle**: Defines the light distribution
+- **Intensity**: Brightness of the light
+- **Color**: Color of the light
+- **Enable Temperature**: Color temperature control
+
+**Use Cases**:
+- Accent lighting
+- Focused illumination
+- Automotive headlights
+
+```python
+# Create a spotlight
+create_prim(
+    prim_path="/World/Lighting/Spotlight",
+    prim_type="SpotLight",
+    position=[0, -3, 2],
+    orientation=[0.707, 0, 0, 0.707],  # Pointing downward
+    attributes={
+        "innerConeAngle": 0.5,
+        "outerConeAngle": 0.7,
+        "intensity": 600,
+        "color": [1.0, 1.0, 1.0]
+    }
+)
+```
+
+### Advanced Lighting Techniques
+
+#### Light Linking
+Light linking controls which objects are affected by specific lights:
+
+```python
+# Example of light linking setup (conceptual)
+# This would be done through USD relationships
+```
+
+#### Volumetric Effects
+Add atmospheric effects to enhance realism:
+
+```python
+# Create volumetric effects
+from omni.isaac.core.utils.prims import create_prim
+
+create_prim(
+    prim_path="/World/Atmosphere/VolumetricFog",
+    prim_type="Volume",
+    attributes={
+        "density": 0.01,
+        "scattering": [0.1, 0.1, 0.1]
+    }
+)
+```
+
+### Performance Considerations for Lighting
+
+To maintain the target performance of 30 FPS for basic scenes and 10 FPS for complex scenes:
+
+1. **Limit the number of lights**: Use 1-3 main lights for basic scenes, up to 5-8 for complex scenes
+2. **Optimize light properties**:
+   - Use appropriate intensity values (avoid extremely high values)
+   - Use shadow map resolution appropriate for your needs
+   - Consider using light baking for static lighting
+3. **Use IES profiles** for realistic light distribution
+4. **Implement light culling** for scenes with many lights
+
+## Physics Configuration
+
+### Physics Scene Setup
+
+The physics scene defines global physics properties for the entire simulation:
+
+```python
+# Configure the physics scene
+from pxr import PhysxSchema, UsdPhysics
+
+stage = omni.usd.get_context().get_stage()
+physics_scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+
+# Set physics properties
+physics_scene.CreateGravityDirectionAttr().Set([0, 0, -1])
+physics_scene.CreateGravityMagnitudeAttr().Set(9.81)
+physics_scene.CreateTimestepAttr().Set(1.0/60.0)  # 60 FPS physics
+```
+
+### Rigid Body Configuration
+
+Rigid bodies are objects that participate in physics simulation:
+
+#### Basic Rigid Body Properties
+- **Mass**: Mass of the object (kg)
+- **Density**: Alternative to mass, calculated from volume
+- **Center of Mass**: Point where forces are applied
+- **Inertia**: Resistance to rotational motion
+
+```python
+# Create a rigid body
+from omni.isaac.core.utils.prims import create_prim
+from omni.isaac.core.utils.stage import add_physics_material
+
+# Create an object
+create_prim(
+    prim_path="/World/Environment/Box",
+    prim_type="Cube",
+    position=[0, 0, 1],
+    scale=[0.5, 0.5, 0.5]
+)
+
+# Add rigid body component
+from pxr import UsdPhysics, PhysxSchema
+
+stage = omni.usd.get_context().get_stage()
+prim = stage.GetPrimAtPath("/World/Environment/Box")
+
+# Apply rigid body properties
+rigid_body = UsdPhysics.RigidBodyAPI.Apply(prim)
+rigid_body.CreateMassAttr().Set(1.0)  # 1 kg
+rigid_body.CreateLinearDampingAttr().Set(0.05)
+rigid_body.CreateAngularDampingAttr().Set(0.05)
+
+# Add collision
+collision_api = UsdPhysics.CollisionAPI.Apply(prim)
+```
+
+#### Advanced Rigid Body Properties
+- **Linear/Angular Damping**: Resistance to motion
+- **Max Linear/Angular Velocity**: Speed limits
+- **Sleep Threshold**: When to put object to sleep for performance
+- **Stabilization**: Prevents jittering
+
+### Collision Configuration
+
+Collision shapes define how objects interact physically:
+
+#### Types of Collision Shapes
+1. **Box Collision**: Rectangular collision shape
+2. **Sphere Collision**: Spherical collision shape
+3. **Capsule Collision**: Capsule-shaped collision (good for characters)
+4. **Mesh Collision**: Uses the object's mesh for collision
+5. **Convex Hull**: Convex approximation of complex shapes
+
+```python
+# Add different collision shapes
+from pxr import UsdPhysics
+
+prim = stage.GetPrimAtPath("/World/Environment/MyObject")
+
+# Box collision
+collision = UsdPhysics.CollisionAPI.Apply(prim)
+collision.CreateCollisionEnabledAttr().Set(True)
+
+# For complex shapes, use convex decomposition
+collision.CreateApproximationModelAttr().Set("convexDecomposition")
+```
+
+### Material Properties
+
+Physics materials define surface properties for realistic interactions:
+
+#### Surface Properties
+- **Static Friction**: Resistance to starting motion
+- **Dynamic Friction**: Resistance to continuing motion
+- **Restitution**: Bounciness (0 = no bounce, 1 = perfectly elastic)
+
+```python
+# Create a physics material
+physics_material = PhysxSchema.PhysxMaterial.Define(stage, "/World/Materials/DefaultMaterial")
+physics_material.CreateStaticFrictionAttr().Set(0.5)
+physics_material.CreateDynamicFrictionAttr().Set(0.4)
+physics_material.CreateRestitutionAttr().Set(0.1)
+
+# Apply to an object
+collision_api = UsdPhysics.CollisionAPI.Apply(prim)
+collision_api.CreateMaterialRel().SetTargets(["/World/Materials/DefaultMaterial"])
+```
+
+### Soft Body Physics
+
+For deformable objects:
+
+```python
+# Soft body configuration (advanced)
+from pxr import PhysxSchema
+
+# Define soft body properties
+soft_body = PhysxSchema.PhysxParticleBasedAPI.Apply(prim)
+soft_body.CreateSimulationOwnerRel().SetTargets(["/World/PhysicsScene"])
+```
+
+## Material Configuration for Realism
+
+### Physically-Based Materials (PBR)
+
+Isaac Sim uses Physically-Based Rendering materials for realistic appearance:
+
+#### Material Properties
+- **Albedo (Base Color)**: The base color of the material
+- **Roughness**: How rough or smooth the surface appears
+- **Metallic**: How metallic the surface appears (0-1)
+- **Normal Map**: Surface detail without geometry
+- **Occlusion**: Ambient occlusion for contact shadows
+- **Emissive**: Light-emitting surfaces
+
+```python
+# Create a PBR material
+from omni.particle.system.core import MaterialAPI
+from pxr import UsdShade
+
+# Create material prim
+material_path = "/World/Materials/ExampleMaterial"
+material = UsdShade.Material.Define(stage, material_path)
+
+# Create shader
+shader = UsdShade.Shader.Define(stage, material_path + "/Shader")
+shader.CreateIdAttr("OmniPBR")
+
+# Set material properties
+shader.CreateInput("diffuse_color", Sdf.ValueTypeNames.Color3f).Set([0.8, 0.2, 0.2])  # Red
+shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.3)
+shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+shader.CreateInput("clearcoat", Sdf.ValueTypeNames.Float).Set(0.0)
+
+# Bind material to geometry
+binding_api = UsdShade.MaterialBindingAPI(prim)
+binding_api.Bind(material)
+```
+
+### Texture Mapping
+
+Apply textures to materials for detailed surfaces:
+
+```python
+# Add texture to material
+from pxr import Sdf
+
+# Create texture sampler
+texture_shader = UsdShade.Shader.Define(stage, material_path + "/Texture")
+texture_shader.CreateIdAttr("UsdUVTexture")
+texture_shader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set("path/to/texture.png")
+
+# Connect texture to material property
+shader.GetInput("diffuse_color").ConnectToSource(texture_shader, "rgb")
+```
+
+## Performance Optimization
+
+### Lighting Optimization
+1. **Use light linking** to limit which objects each light affects
+2. **Optimize shadow resolution** - use appropriate settings for your needs
+3. **Use light baking** for static lighting where possible
+4. **Implement light culling** for lights outside the camera view
+
+### Physics Optimization
+1. **Use appropriate collision shapes** - simpler shapes for performance
+2. **Implement sleeping** for objects at rest
+3. **Use instancing** for multiple similar objects
+4. **Optimize physics timestep** - balance accuracy and performance
+
+### Multi-User Session Considerations
+
+For supporting up to 10 simultaneous student sessions:
+- **Resource allocation**: Ensure each session has adequate GPU and CPU resources
+- **Scene complexity limits**: Implement checks to prevent overly complex scenes
+- **Performance monitoring**: Track FPS and adjust complexity as needed
+- **Session isolation**: Ensure physics and lighting don't interfere between sessions
+
+## Practical Exercise: Configuring a Realistic Room Scene
+
+### Objective
+Set up realistic lighting and physics properties for a room scene to achieve photorealistic rendering and accurate physics simulation.
+
+### Steps
+
+1. **Scene Setup**:
+   - Start with the simple room scene from the previous section
+   - Ensure proper hierarchy and naming
+
+2. **Lighting Configuration**:
+   - Add a dome light with an HDR environment texture for ambient lighting
+   - Add a rectangular area light near the ceiling as the main light source
+   - Add a distant light to simulate potential outdoor lighting through windows
+   - Configure light intensities and colors for realistic appearance
+
+3. **Material Assignment**:
+   - Assign realistic materials to walls, floor, and furniture
+   - Configure PBR properties (albedo, roughness, metallic)
+   - Apply appropriate textures
+
+4. **Physics Configuration**:
+   - Add rigid body components to movable objects (chairs, small items)
+   - Add collision shapes to all objects
+   - Configure physics materials for realistic interactions
+
+5. **Performance Tuning**:
+   - Test the scene performance
+   - Adjust light intensities and shadow settings as needed
+   - Verify physics simulation behaves correctly
+
+### Sample Configuration Code
+
+```python
+# Complete room scene setup
+import omni
+from omni.isaac.core.utils.prims import create_prim
+from pxr import UsdPhysics, PhysxSchema
+
+# Get stage
+stage = omni.usd.get_context().get_stage()
+
+# Setup physics scene
+physics_scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+physics_scene.CreateGravityDirectionAttr().Set([0, 0, -1])
+physics_scene.CreateGravityMagnitudeAttr().Set(9.81)
+
+# Add dome light for environment
+create_prim(
+    prim_path="/World/Lighting/Environment",
+    prim_type="DomeLight",
+    attributes={
+        "intensity": 0.8,
+        "color": [0.2, 0.2, 0.2],
+        "texture:file": "path/to/indoor_environment.hdr"
+    }
+)
+
+# Add main area light
+create_prim(
+    prim_path="/World/Lighting/MainLight",
+    prim_type="RectLight",
+    position=[0, 0, 2.5],
+    attributes={
+        "width": 1.0,
+        "height": 1.0,
+        "intensity": 700,
+        "color": [0.98, 0.92, 0.84]  # Warm white
+    }
+)
+
+# Configure a movable object (chair)
+create_prim(
+    prim_path="/World/Environment/Furniture/Chair",
+    prim_type="Xform",
+    position=[1, 0, 0.3]
+)
+
+# Add chair geometry
+chair_geom = create_prim(
+    prim_path="/World/Environment/Furniture/Chair/Geometry",
+    prim_type="Cube",
+    scale=[0.4, 0.4, 0.8]
+)
+
+# Add rigid body to chair
+rigid_body = UsdPhysics.RigidBodyAPI.Apply(chair_geom.GetPrim())
+rigid_body.CreateMassAttr().Set(5.0)  # 5 kg chair
+rigid_body.CreateLinearDampingAttr().Set(0.05)
+rigid_body.CreateAngularDampingAttr().Set(0.1)
+
+# Add collision
+collision_api = UsdPhysics.CollisionAPI.Apply(chair_geom.GetPrim())
+collision_api.CreateCollisionEnabledAttr().Set(True)
+```
+
+## Troubleshooting Common Issues
+
+### Lighting Issues
+- **Dark scenes**: Check if dome light intensity is too low or if there are no primary lights
+- **Overexposed scenes**: Reduce light intensities or adjust camera exposure
+- **Artifacts in shadows**: Increase shadow map resolution or adjust light angles
+- **Performance issues**: Reduce the number of lights or lower shadow quality
+
+### Physics Issues
+- **Objects falling through surfaces**: Check collision properties and physics materials
+- **Unrealistic bounces**: Adjust restitution values in physics materials
+- **Objects sliding too much**: Increase friction values
+- **Jittery motion**: Check mass properties and consider increasing damping
+
+### Material Issues
+- **Materials appear black**: Check texture paths and material connections
+- **Incorrect metallic appearance**: Verify metallic and roughness values
+- **Missing reflections**: Ensure proper lighting and material setup
+
+## Best Practices Summary
+
+1. **Start simple**: Begin with basic lighting and physics, add complexity gradually
+2. **Use references**: Create standard lighting and physics configurations as reusable assets
+3. **Balance realism and performance**: Optimize for target FPS while maintaining quality
+4. **Test frequently**: Regularly test physics behavior and lighting appearance
+5. **Document settings**: Keep records of successful configurations for reuse
+6. **Consider the end use**: Adjust lighting and physics for the intended synthetic dataset application
+
+## Next Steps
+
+After mastering lighting and physics setup:
+1. Practice creating more complex scenes with multiple lighting scenarios
+2. Experiment with different material properties and textures
+3. Test physics simulation with various object configurations
+4. Move on to synthetic dataset generation techniques
+5. Proceed to the lab exercise for hands-on practice
+
+## References
+
+- [Isaac Sim Lighting Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/lighting.html)
+- [USD Physics Schema](https://graphics.pixar.com/usd/release/api/schema_usd_physics_page_front.html)
+- [PhysX in Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/physx.html)
+- [Material Creation in Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/materials.html)

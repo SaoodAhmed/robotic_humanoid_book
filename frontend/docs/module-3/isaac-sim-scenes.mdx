@@ -1,0 +1,453 @@
+# Isaac Sim Scenes and Synthetic Data Generation
+
+## Overview
+
+NVIDIA Isaac Sim is a powerful simulation environment that enables the creation of photorealistic scenes for robotics development. This module covers the fundamentals of scene creation, synthetic dataset generation, and the use of these datasets for training perception models. Isaac Sim leverages the Universal Scene Description (USD) format and NVIDIA's Omniverse platform to create physically accurate simulations with realistic lighting and physics.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Create photorealistic scenes in Isaac Sim using USD format
+- Configure lighting and physics properties for realistic simulation
+- Generate synthetic datasets with RGB images, depth maps, and annotations
+- Export datasets in standard formats suitable for machine learning
+- Optimize scenes for performance targets (30 FPS basic, 10 FPS complex)
+
+## Prerequisites
+
+Before starting this module, students should have:
+- Completed Module 1 (ROS 2 basics)
+- Completed Module 2 (Simulation fundamentals)
+- Installed Isaac Sim on an RTX-capable workstation
+- Familiarity with 3D modeling concepts
+- Basic understanding of computer vision principles
+
+## Installing and Launching Isaac Sim
+
+### Prerequisites Check
+Before launching Isaac Sim, ensure your system meets the hardware requirements:
+- RTX 3080 or better with 12GB+ VRAM (minimum RTX 2060 with 8GB VRAM)
+- 32GB RAM (minimum 16GB)
+- Ubuntu 22.04 LTS with NVIDIA drivers
+- CUDA 11.8 or newer
+
+### Launching Isaac Sim
+```bash
+cd ~/isaac-sim
+./isaac-sim.py
+```
+
+Isaac Sim will launch with the default startup scene. The interface consists of several key components:
+- **Viewport**: The main 3D scene view
+- **Stage**: USD scene hierarchy
+- **Property Panel**: Component properties and settings
+- **Timeline**: Animation and simulation controls
+- **Menu Bar**: Application controls and extensions
+
+## Creating Basic Scenes
+
+### New Scene Setup
+1. In the menu bar, select `File → New` to create a new scene
+2. Isaac Sim will create a default scene with:
+   - Ground plane
+   - Default lighting
+   - Camera
+   - Physics world
+
+### Adding Objects to the Scene
+1. In the Stage panel, right-click on `/World` to open the prim creation menu
+2. Select `Create → Primitive` to add basic shapes:
+   - Cube
+   - Sphere
+   - Cylinder
+   - Cone
+   - Capsule
+   - Plane
+
+3. To add more complex objects, use the Content Browser:
+   - Click `Window → Content Browser`
+   - Navigate to the Assets folder
+   - Drag and drop objects into the viewport
+
+### Configuring Object Properties
+1. Select an object in the Stage panel or viewport
+2. Modify properties in the Property panel:
+   - Transform (position, rotation, scale)
+   - Material properties
+   - Physics properties
+   - Visibility settings
+
+### Setting Up Materials and Textures
+1. In the Content Browser, navigate to `Isaac Assets → Materials`
+2. Drag materials onto objects in the viewport
+3. Customize material properties in the Property panel:
+   - Albedo (base color)
+   - Roughness
+   - Metallic
+   - Normal maps
+   - Specular maps
+
+## Lighting and Environment Configuration
+
+### Adding Lights
+Isaac Sim supports several types of lights:
+
+#### Distant Light (Sun)
+```python
+# Create a distant light in Python API
+from omni.isaac.core.utils.prims import create_prim
+
+create_prim(
+    "/World/DistantLight",
+    "DistantLight",
+    position=[0, 0, 10],
+    attributes={"color": [0.9, 0.9, 0.9], "intensity": 500}
+)
+```
+
+#### Dome Light (Environment)
+```python
+# Create a dome light with HDR texture
+create_prim(
+    "/World/DomeLight",
+    "DomeLight",
+    attributes={
+        "color": [0.2, 0.2, 0.2],
+        "intensity": 1,
+        "texture:file": "path/to/sky.hdr"
+    }
+)
+```
+
+#### Rect Light (Area Light)
+```python
+# Create a rectangular area light
+create_prim(
+    "/World/RectLight",
+    "RectLight",
+    position=[0, 0, 5],
+    attributes={
+        "color": [1, 1, 1],
+        "intensity": 1000,
+        "width": 2,
+        "height": 2
+    }
+)
+```
+
+### Environment Setup
+1. Add a sky dome with an HDR texture for realistic environment lighting
+2. Configure ground plane with appropriate material
+3. Set up atmospheric effects if needed
+
+## Physics Configuration
+
+### Physics Scene Setup
+1. Isaac Sim automatically creates a physics scene when you start
+2. To modify physics properties:
+   - Select `/World/PhysicsScene` in the Stage panel
+   - Modify properties in the Property panel:
+     - Gravity
+     - Solver settings
+     - Collision detection parameters
+
+### Rigid Body Configuration
+For each object that should participate in physics simulation:
+1. Right-click the object in the Stage panel
+2. Select `Add → Physics → RigidBody`
+3. Configure rigid body properties:
+   - Mass
+   - Inertia
+   - Damping
+   - Solver settings
+
+### Collision Shapes
+1. Add collision shapes to objects for accurate physics:
+   - Right-click object → `Add → Physics → Collision`
+   - Choose appropriate collision shape (Box, Sphere, Capsule, Mesh)
+   - Adjust collision properties
+
+## USD Format and Scene Structure
+
+### USD Fundamentals
+Universal Scene Description (USD) is Pixar's scene description format that Isaac Sim uses for scene representation. Key concepts:
+
+- **Prims (Primitives)**: Basic scene objects
+- **Properties**: Attributes of prims
+- **Relationships**: Connections between prims
+- **Variants**: Different versions of the same prim
+- **Payloads**: External references to other USD files
+
+### Scene Hierarchy
+A typical Isaac Sim scene follows this structure:
+```
+/World
+├── PhysicsScene
+├── GroundPlane
+├── Lighting
+│   ├── DistantLight
+│   ├── DomeLight
+│   └── Additional Lights
+├── Environment
+│   ├── Objects
+│   └── Static Geometry
+├── Robots
+│   └── Robot Models
+├── Sensors
+│   └── Camera, LiDAR, etc.
+└── Simulation
+    └── Animation and Simulation Data
+```
+
+## Synthetic Dataset Generation with Replicator
+
+### Introduction to Replicator
+NVIDIA Isaac Sim Replicator is a framework for generating synthetic datasets with randomized properties. It enables:
+- Procedural scene generation
+- Sensor data capture
+- Ground truth annotation
+- Domain randomization
+
+### Basic Replicator Setup
+1. Open the Replicator extension: `Window → Replicator`
+2. Create a camera for data capture:
+   - In the Stage panel, right-click `/World`
+   - Select `Create → Camera → Camera`
+   - Position the camera appropriately
+
+### Creating a Basic Dataset Generation Script
+```python
+import omni.replicator.core as rep
+
+# Define a function to randomize objects
+@rep.randomizer
+def randomize_objects():
+    # Get all cube prims in the scene
+    cubes = rep.get.prims(path_pattern="/World/Cube*")
+
+    with rep.trigger.on_frame():
+        # Randomize cube colors
+        with cubes.get_xform_prim_path_query() as xform:
+            rep.randomizer.color(colors=rep.distribution.uniform((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)), count=1)
+
+        # Randomize cube positions
+        rep.modify.semantics(prim=cubes, semantic_label="obstacle")
+
+    return cubes.node
+
+# Register the randomizer
+randomize_objects()
+
+# Create a camera and render products
+camera = rep.create.camera()
+render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+# Create annotators for RGB and depth
+rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+rgb_annotator.attach(render_product)
+
+depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+depth_annotator.attach(render_product)
+
+# Execute the generation
+with rep.new_layer():
+    rep.WriterRegistry.get("BasicWriter").write(
+        output_dir="output/dataset",
+        frames=100  # Generate 100 frames
+    )
+```
+
+### Annotator Types
+Isaac Sim Replicator supports various annotators:
+- **RGB**: Color images
+- **Distance to Image Plane**: Depth maps
+- **Semantic Segmentation**: Class labels per pixel
+- **Instance Segmentation**: Instance labels per pixel
+- **Bounding Box**: 2D bounding boxes
+- **Normals**: Surface normal vectors
+- **Motion Vectors**: Optical flow
+- **Material IDs**: Material identification
+
+### Domain Randomization
+Domain randomization helps create diverse datasets:
+```python
+# Randomize lighting
+with rep.randomizer.light():
+    rep.randomizer.light.intensity(
+        intensity=rep.distribution.normal(mean=300, std=50)
+    )
+    rep.randomizer.light.color(
+        color=rep.distribution.uniform((0.8, 0.8, 0.8), (1.0, 1.0, 1.0))
+    )
+
+# Randomize textures
+with rep.randomizer.material():
+    rep.randomizer.material.roughness(
+        roughness=rep.distribution.uniform(0.1, 0.9)
+    )
+    rep.randomizer.material.metallic(
+        metallic=rep.distribution.uniform(0.0, 0.2)
+    )
+```
+
+## Performance Optimization
+
+### Scene Complexity Management
+To maintain performance targets:
+- **Basic scenes**: Target 30 FPS
+  - Fewer than 20 objects
+  - Simple materials
+  - Single light source
+  - Low-resolution textures
+
+- **Complex scenes**: Target 10 FPS
+  - 50+ objects
+  - Complex lighting (multiple sources)
+  - Detailed materials and textures
+  - Multiple sensors
+
+### Multi-Sensor Configuration
+For supporting up to 50 concurrent sensors per simulation:
+1. Create sensor arrays efficiently
+2. Use sensor instancing where possible
+3. Configure appropriate update rates
+4. Implement sensor scheduling to avoid resource contention
+
+### Multi-User Session Support
+To support up to 10 simultaneous student sessions:
+1. Configure Isaac Sim cloud deployment
+2. Set up resource allocation per session
+3. Implement session isolation
+4. Monitor performance metrics per session
+
+## Dataset Export and Validation
+
+### Export Formats
+Isaac Sim can export datasets in various formats:
+- **Images**: PNG, JPG, EXR
+- **Depth**: PNG (16-bit), EXR
+- **Annotations**: JSON, COCO format, YOLO format
+- **Metadata**: JSON with camera parameters, transforms
+
+### Dataset Validation
+```python
+import os
+import json
+import cv2
+from PIL import Image
+
+def validate_dataset(dataset_path):
+    """Validate synthetic dataset structure and content"""
+    # Check directory structure
+    required_dirs = ["images", "depth", "annotations"]
+    for directory in required_dirs:
+        if not os.path.exists(os.path.join(dataset_path, directory)):
+            print(f"Missing directory: {directory}")
+            return False
+
+    # Count files in each directory
+    image_count = len(os.listdir(os.path.join(dataset_path, "images")))
+    depth_count = len(os.listdir(os.path.join(dataset_path, "depth")))
+    annotation_count = len(os.listdir(os.path.join(dataset_path, "annotations")))
+
+    if not (image_count == depth_count == annotation_count > 0):
+        print("Inconsistent file counts across directories")
+        return False
+
+    # Validate image properties
+    sample_image = os.path.join(dataset_path, "images", os.listdir(os.path.join(dataset_path, "images"))[0])
+    img = cv2.imread(sample_image)
+    if img is None:
+        print("Invalid image file detected")
+        return False
+
+    print(f"Dataset validation passed: {image_count} samples")
+    return True
+
+# Example usage
+dataset_path = "output/dataset"
+if validate_dataset(dataset_path):
+    print("Dataset is valid and ready for training")
+else:
+    print("Dataset validation failed")
+```
+
+## Security Considerations
+
+### Secure Communication
+When running Isaac Sim in multi-user educational environments:
+1. Implement authentication for simulation access
+2. Use secure protocols for data transmission
+3. Protect student-generated content with appropriate access controls
+4. Implement data privacy measures for synthetic datasets
+
+## Lab Exercise: Basic Scene Creation and Dataset Generation
+
+### Objective
+Create a simple indoor scene with furniture and generate a synthetic dataset containing RGB images, depth maps, and semantic segmentation masks.
+
+### Steps
+1. **Scene Creation**:
+   - Create a new scene in Isaac Sim
+   - Add a ground plane and walls to create an indoor environment
+   - Place 5-10 objects (cubes, spheres, cylinders) representing furniture
+   - Configure appropriate lighting (distant light + dome light)
+
+2. **Material Setup**:
+   - Apply different materials to objects
+   - Configure textures for realism
+   - Set up collision properties for physics simulation
+
+3. **Sensor Configuration**:
+   - Add a camera to capture RGB images
+   - Position the camera to view the scene appropriately
+   - Configure camera resolution (1920x1080)
+
+4. **Replicator Setup**:
+   - Open the Replicator extension
+   - Create annotators for RGB, depth, and semantic segmentation
+   - Configure domain randomization for lighting and object positions
+   - Set up dataset export parameters
+
+5. **Dataset Generation**:
+   - Execute the generation script
+   - Generate at least 100 frames of data
+   - Verify the output dataset structure
+
+6. **Validation**:
+   - Validate the generated dataset using the provided script
+   - Check that all required files are present
+   - Verify image quality and annotation accuracy
+
+### Expected Outcomes
+- Successfully created a basic indoor scene in Isaac Sim
+- Generated a dataset with at least 100 RGB images with corresponding depth maps and semantic segmentation masks
+- Dataset validates successfully with proper structure and file counts
+- Understanding of the complete synthetic data generation workflow
+
+## Troubleshooting Common Issues
+
+### Performance Issues
+- **Low FPS**: Reduce scene complexity, use simpler materials, reduce lighting complexity
+- **Memory errors**: Close unnecessary applications, reduce texture resolution, use lower polygon models
+- **GPU memory errors**: Reduce scene complexity, use texture streaming, optimize mesh complexity
+
+### Dataset Generation Issues
+- **Empty datasets**: Check camera positioning, verify annotator attachment, ensure simulation is running
+- **Corrupted files**: Check file permissions, verify output directory exists, ensure sufficient disk space
+- **Missing annotations**: Verify annotator configuration, check for runtime errors in generation script
+
+## Next Steps
+
+After completing this section, students should:
+1. Practice creating more complex scenes with multiple objects
+2. Experiment with different lighting conditions
+3. Try generating datasets with various annotator combinations
+4. Proceed to the Isaac ROS VSLAM pipeline section
+
+## References
+
+- [Isaac Sim Documentation](https://docs.omniverse.nvidia.com/isaacsim/latest/index.html)
+- [USD Documentation](https://graphics.pixar.com/usd/release/index.html)
+- [Isaac Sim Replicator Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/features/replicator.html)
+- [NVIDIA Omniverse](https://www.nvidia.com/en-us/omniverse/)

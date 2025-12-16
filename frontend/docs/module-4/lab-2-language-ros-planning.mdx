@@ -1,0 +1,268 @@
+---
+sidebar_position: 14
+---
+
+# Lab 2: Language-to-ROS 2 Task Planning and Execution
+
+## Overview
+In this lab, you will implement and test the LLM-based action planning system that translates natural language commands into ROS 2 action sequences. This lab builds on Lab 1 by adding the intelligence layer that converts high-level goals into specific robot behaviors.
+
+## Learning Objectives
+By the end of this lab, you will be able to:
+- Configure and test OpenAI API integration for action planning
+- Create effective prompts that generate appropriate ROS 2 action sequences
+- Validate that natural language commands translate correctly to ROS 2 actions
+- Implement safety guardrails for action generation
+- Handle ambiguous commands with clarification requests
+- Test the complete pipeline from language input to action execution
+
+## Prerequisites
+- Completion of Lab 1 (Voice Command Processing)
+- OpenAI API key configured
+- ROS 2 Humble Hawksbill installed
+- Isaac Sim environment from Module 3
+- Basic understanding of ROS 2 actions and services
+
+## Lab Setup
+
+### 1. Environment Configuration
+Ensure your environment is properly configured with OpenAI API access:
+
+```bash
+# Verify OpenAI API key is set
+echo $OPENAI_API_KEY
+
+# Verify ROS 2 environment
+source /opt/ros/humble/setup.bash
+ros2 topic list | grep vla
+```
+
+### 2. LLM Integration Configuration
+Create a configuration file for LLM integration:
+
+```json
+{
+  "llm_integration": {
+    "api_key": "$OPENAI_API_KEY",
+    "model": "gpt-4-turbo",
+    "temperature": 0.3,
+    "max_tokens": 1000,
+    "request_timeout": 30,
+    "rate_limit": 10,
+    "supported_actions": [
+      "navigate_to_pose",
+      "detect_object",
+      "grasp_object",
+      "release_object",
+      "rotate",
+      "speak",
+      "wait",
+      "perceive_environment"
+    ],
+    "robot_capabilities": {
+      "navigation": {
+        "max_speed": 1.0,
+        "min_turn_radius": 0.3,
+        "max_range": 10.0
+      },
+      "manipulation": {
+        "max_weight": 0.5,
+        "reach_distance": 1.2,
+        "gripper_type": "parallel_jaw"
+      },
+      "perception": {
+        "detection_range": 5.0,
+        "detection_accuracy": 0.9
+      }
+    },
+    "environment_context": {
+      "available_rooms": ["kitchen", "living_room", "bedroom", "office"],
+      "known_objects": ["red_ball", "blue_cup", "wooden_table", "sofa"],
+      "navigation_goals": [
+        {"name": "kitchen_table", "position": [2.0, 1.0, 0.0]},
+        {"name": "sofa", "position": [-1.0, 1.5, 0.0]},
+        {"name": "bed", "position": [-2.0, -1.0, 0.0]}
+      ]
+    }
+  }
+}
+```
+
+Save this as `config/llm_config.json`.
+
+## Lab Exercises
+
+### Exercise 1: Basic LLM Integration
+
+1. Launch the Isaac Sim environment:
+   ```bash
+   ros2 launch isaac_sim_module3.launch.py
+   ```
+
+2. In a new terminal, start the VLA node:
+   ```bash
+   ros2 run vla_module4 vla_node.py
+   ```
+
+3. Test basic LLM integration by sending a simple command to the planning service:
+   ```bash
+   # Use the service to generate an action plan
+   ros2 service call /vla/generate_plan vla_interfaces/GeneratePlan \
+     "{natural_language_command: 'go to the kitchen', robot_capabilities: '{}', environment_context: '{}'}"
+   ```
+
+4. Verify that the LLM generates a valid action sequence:
+   - Should include navigation actions
+   - Actions should be in correct sequence
+   - Parameters should be properly formatted
+
+### Exercise 2: Action Plan Validation
+
+1. Test the action plan validation by sending various commands:
+   ```bash
+   # Test command: "Find the red ball and bring it to me"
+   ros2 service call /vla/generate_plan vla_interfaces/GeneratePlan \
+     "{natural_language_command: 'find the red ball and bring it to me', robot_capabilities: '{}', environment_context: '{}'}"
+   ```
+
+2. Examine the generated action plan:
+   - Should include perception, navigation, manipulation actions
+   - Actions should be logically sequenced
+   - All required parameters should be present
+
+3. Verify that invalid commands are handled appropriately:
+   - Commands that exceed robot capabilities
+   - Commands with impossible goals
+   - Commands with safety concerns
+
+### Exercise 3: Prompt Engineering
+
+1. Test different prompt variations to see how they affect plan generation:
+   ```python
+   # In a Python script, test different prompt structures
+   from frontend.docs.module_4.language_to_action import VLAActionPrompter
+
+   prompter = VLAActionPrompter()
+
+   # Test basic command
+   command = "go to the kitchen"
+   context = {
+       "environment": {"kitchen_location": [2.0, 1.0, 0.0]},
+       "capabilities": {"navigation": True}
+   }
+
+   prompt = prompter.create_command_prompt(command, context)
+   print("Generated prompt:", prompt)
+   ```
+
+2. Evaluate the effectiveness of different prompt structures:
+   - Direct instruction vs. few-shot examples
+   - JSON format requirements
+   - Safety constraints inclusion
+   - Context provision
+
+### Exercise 4: Guardrail Testing
+
+1. Test the safety guardrails with potentially unsafe commands:
+   ```bash
+   # Test potentially unsafe command
+   ros2 service call /vla/generate_plan vla_interfaces/GeneratePlan \
+     "{natural_language_command: 'go through the wall to get to the kitchen', robot_capabilities: '{}', environment_context: '{}'}"
+   ```
+
+2. Verify that the system appropriately handles:
+   - Impossible actions (going through walls)
+   - Potentially harmful actions
+   - Commands that exceed robot capabilities
+   - Inappropriate requests
+
+### Exercise 5: Ambiguous Command Handling
+
+1. Test the system with ambiguous commands:
+   ```bash
+   # Test ambiguous command
+   ros2 service call /vla/generate_plan vla_interfaces/GeneratePlan \
+     "{natural_language_command: 'go there', robot_capabilities: '{}', environment_context: '{}'}"
+   ```
+
+2. Verify that the system responds with:
+   - Appropriate clarification requests
+   - Reasonable assumptions when context allows
+   - Proper error handling when clarification is needed
+
+### Exercise 6: Integration Testing
+
+1. Test the complete pipeline by providing a voice command that goes through the full VLA system:
+   - Speak: "Hey robot, find the red ball and bring it to me"
+   - Verify the command is recognized
+   - Check that LLM generates appropriate action plan
+   - Confirm the action plan is executed in simulation
+
+2. Monitor the state transitions:
+   - IDLE → LISTENING → PROCESSING → PLANNING → EXECUTING
+
+## Performance Testing
+
+### Latency Measurements
+1. Measure the time from command receipt to plan generation
+2. Record average, 95th percentile, and maximum latencies
+3. Verify latencies meet the &lt;3000ms target for LLM processing
+
+### Accuracy Testing
+1. Test with a variety of natural language commands
+2. Compare generated action plans to expected sequences
+3. Record accuracy for different command types and complexities
+
+### Robustness Testing
+1. Test with grammatically incorrect commands
+2. Test with commands that include irrelevant information
+3. Test with multi-step commands requiring complex planning
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+**Issue**: LLM API calls timing out
+- Solution: Check network connectivity and API key validity
+- Solution: Verify rate limit compliance
+- Solution: Consider using a different OpenAI model
+
+**Issue**: Generated actions incompatible with robot
+- Solution: Verify robot capabilities are correctly provided to LLM
+- Solution: Check action validation logic
+- Solution: Review supported action types
+
+**Issue**: Safety guardrails too restrictive
+- Solution: Adjust guardrail parameters in configuration
+- Solution: Refine safety constraint definitions
+- Solution: Add more nuanced safety checking
+
+**Issue**: Ambiguous commands not handled properly
+- Solution: Improve ambiguity detection algorithms
+- Solution: Enhance clarification request generation
+- Solution: Add more context to prompts
+
+## Lab Report Requirements
+
+For this lab, submit a report including:
+
+1. **Setup Summary**: Document your LLM integration configuration
+2. **Performance Results**: Include latency measurements and accuracy rates
+3. **Prompt Effectiveness**: Compare different prompt engineering approaches
+4. **Guardrail Effectiveness**: Document how well safety measures work
+5. **Error Analysis**: Describe any issues encountered and resolutions
+6. **Integration Testing Results**: Summarize end-to-end pipeline tests
+
+## Assessment Criteria
+
+- [ ] LLM successfully generates action plans from natural language commands
+- [ ] Action plans are properly formatted for ROS 2 execution
+- [ ] Safety guardrails prevent unsafe action generation
+- [ ] Ambiguous commands are handled with appropriate clarifications
+- [ ] LLM processing latency is within acceptable bounds (&lt;3000ms)
+- [ ] Action validation ensures plans are executable by the robot
+- [ ] Error recovery mechanisms work properly
+
+## Next Steps
+
+After completing this lab, you should have a solid understanding of LLM integration for action planning. The next lab will build on this by integrating all components into a complete VLA control loop, connecting your language-to-action pipeline with the perception, navigation, and manipulation systems for end-to-end autonomous behavior.

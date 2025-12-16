@@ -1,0 +1,1008 @@
+---
+title: "Lab 2: Isaac ROS VSLAM Pipeline"
+sidebar_position: 7
+---
+
+# Lab 2: Isaac ROS VSLAM Pipeline
+
+## Overview
+
+This lab provides hands-on experience with Isaac ROS Visual Simultaneous Localization and Mapping (VSLAM) pipeline. Students will learn to configure and deploy Isaac ROS perception nodes for processing sensor data from Isaac Sim, creating accurate pose estimates and environmental maps for humanoid navigation.
+
+## Learning Objectives
+
+After completing this lab, students will be able to:
+- Configure Isaac ROS VSLAM nodes for humanoid robot perception
+- Integrate Isaac Sim sensor data with Isaac ROS processing pipeline
+- Validate VSLAM outputs for accuracy and reliability
+- Optimize VSLAM parameters for humanoid navigation requirements
+- Troubleshoot common VSLAM pipeline issues
+
+## Prerequisites
+
+Before starting this lab, ensure you have:
+- Completed Lab 1: Isaac Sim Scene Creation & Synthetic Data Export
+- Isaac ROS packages built and installed
+- Isaac Sim scene with humanoid robot and sensors configured
+- ROS 2 Humble environment properly sourced
+- NVIDIA GPU with CUDA support
+- Basic understanding of ROS 2 concepts and topics
+
+## Equipment and Software Requirements
+
+- Workstation with RTX GPU (RTX 3080 or better recommended)
+- Ubuntu 22.04 LTS
+- Isaac Sim 2023.1+
+- Isaac ROS packages installed
+- CUDA 12.0+
+- VRAM: Minimum 12GB (24GB+ recommended for optimal performance)
+
+## Lab Duration
+
+Estimated completion time: 2-3 hours
+
+## Exercise 1: Isaac ROS VSLAM Node Setup (T071)
+
+### Step 1: Verify Isaac ROS Installation
+
+1. First, verify that Isaac ROS packages are properly installed:
+```bash
+# Check for Isaac ROS packages
+find /opt/ros/humble/lib/python3.10/site-packages -name "*isaac*" -type d
+
+# Verify Isaac ROS nodes are available
+ros2 pkg list | grep isaac
+```
+
+2. Check Isaac ROS VSLAM specific packages:
+```bash
+# Look for visual slam packages
+ls /opt/ros/humble/lib/isaac_ros_visual_slam/
+
+# Verify dependencies
+dpkg -l | grep -i "isaac"
+```
+
+### Step 2: Create Isaac ROS Workspace Structure
+
+1. Create a workspace for Isaac ROS VSLAM configuration:
+```bash
+# Create Isaac ROS VSLAM config directory
+mkdir -p ~/isaac_ros_ws/src/my_vslam_config/config
+mkdir -p ~/isaac_ros_ws/src/my_vslam_config/launch
+mkdir -p ~/isaac_ros_ws/src/my_vslam_config/rviz
+```
+
+2. Create a launch file for the VSLAM pipeline:
+```xml
+<!-- ~/isaac_ros_ws/src/my_vslam_config/launch/vslam_pipeline.launch.xml -->
+<launch>
+  <!-- Arguments -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="enable_imu_fusion" default="false"/>
+  <arg name="rectify_input_images" default="true"/>
+  <arg name="publish_graph_estimate" default="true"/>
+  <arg name="enable_slam_visualization" default="true"/>
+
+  <!-- Isaac ROS Visual SLAM Node -->
+  <node pkg="isaac_ros_visual_slam" exec="visual_slam_node" name="visual_slam" namespace="isaac_ros" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="enable_imu_fusion" value="$(var enable_imu_fusion)"/>
+    <param name="rectify_input_images" value="$(var rectify_input_images)"/>
+    <param name="publish_graph_estimate" value="$(var publish_graph_estimate)"/>
+    <param name="enable_slam_visualization" value="$(var enable_slam_visualization)"/>
+
+    <!-- Input topics mapping -->
+    <remap from="visual_slam/camera_optical/camera_info" to="/humanoid_robot/rgb_camera_info"/>
+    <remap from="visual_slam/camera_optical/image" to="/humanoid_robot/rgb_image"/>
+
+    <!-- Output topics -->
+    <remap from="visual_slam/tracking/pose_graph/landmarks" to="/isaac_ros/vslam/landmarks"/>
+    <remap from="visual_slam/visual_slam/graph" to="/isaac_ros/vslam/graph"/>
+    <remap from="visual_slam/visual_slam/imu_graph" to="/isaac_ros/vslam/imu_graph"/>
+  </node>
+
+  <!-- Isaac ROS Image Rectification Node (if needed) -->
+  <node pkg="isaac_ros_image_rectifier" exec="image_rectifier_node" name="image_rectifier" namespace="isaac_ros" output="screen" if="$(var rectify_input_images)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="image_raw" to="/humanoid_robot/rgb_image"/>
+    <remap from="camera_info" to="/humanoid_robot/rgb_camera_info"/>
+    <remap from="image_rect" to="/isaac_ros/rectified_rgb_image"/>
+    <remap from="camera_info_rect" to="/isaac_ros/rectified_rgb_camera_info"/>
+  </node>
+</launch>
+```
+
+### Step 3: Configure VSLAM Parameters
+
+1. Create a configuration file for VSLAM parameters:
+```yaml
+# ~/isaac_ros_ws/src/my_vslam_config/config/vslam_params.yaml
+isaac_ros_visual_slam:
+  visual_slam:
+    ros__parameters:
+      # Enable simulation time for Isaac Sim integration
+      use_sim_time: true
+
+      # IMU fusion settings
+      enable_imu_fusion: false  # Disable initially for simplicity
+      imu_topic_name: "/imu/data"
+
+      # Image rectification
+      rectify_input_images: true
+
+      # Graph optimization settings
+      max_num_features: 1000
+      min_num_features: 50
+      num_keyframes: 4
+      min_translation_distance: 0.1
+      min_rotation_angle: 0.1
+
+      # Loop closure settings
+      enable_loop_closure: true
+      min_loop_closure_distance: 1.0
+      max_num_words_per_image: 100
+      min_word_frequency: 5
+
+      # Pose graph optimization
+      optimize_every_n_poses: 10
+      pose_graph_save_file_path: "/tmp/pose_graph.graph"
+
+      # Visualization
+      enable_slam_visualization: true
+      enable_landmark_point_cloud: true
+      enable_map_cache_point_cloud: true
+
+      # Output settings
+      publish_graph_estimate: true
+      publish_tracked_landmarks: true
+      publish_map_cache_point_cloud: true
+
+      # Input/output topics
+      camera_optical_frame_id: "rgb_camera_optical_frame"
+      base_frame_id: "base_link"
+      map_frame_id: "map"
+      odom_frame_id: "odom"
+```
+
+### Step 4: Build and Source Workspace
+
+1. Build the Isaac ROS workspace with the new configuration:
+```bash
+cd ~/isaac_ros_ws
+colcon build --packages-select my_vslam_config
+source install/setup.bash
+```
+
+## Exercise 2: Sensor Bridge Configuration (T072)
+
+### Step 1: Configure Isaac Sim to ROS Bridge
+
+1. Set up the Isaac Sim to ROS bridge to publish sensor data:
+```python
+# ~/isaac_ros_ws/src/my_vslam_config/scripts/setup_sensor_bridge.py
+#!/usr/bin/env python3
+"""
+Setup script for Isaac Sim to ROS sensor bridge
+"""
+
+import carb
+import omni
+from omni.isaac.core import World
+from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+from omni.isaac.core.utils.carb import set_carb_setting
+
+# Import Isaac ROS extensions
+import omni.isaac.ros_bridge as ros_bridge
+
+
+def setup_sensor_bridge():
+    """Setup Isaac Sim to ROS sensor bridge"""
+    # Initialize world
+    world = World(stage_units_in_meters=1.0)
+
+    # Enable ROS bridge
+    ros_bridge_extension = omni.kit.app.SimplePluginManager().get_plugin_by_class(ros_bridge.RosBridgeExtension)
+    if ros_bridge_extension:
+        ros_bridge_extension.on_startup(omni.kit.app.SimplePluginManager.InstanceId)
+
+    # Add humanoid robot to the scene
+    assets_root_path = get_assets_root_path()
+    if assets_root_path is None:
+        carb.log_error("Could not find Isaac Sim assets root path")
+        return
+
+    # Create robot stage
+    add_reference_to_stage(
+        usd_path=f"{assets_root_path}/Isaac/Robots/Humanoid/humanoid_instanceable.usd",
+        prim_path="/World/HumanoidRobot"
+    )
+
+    # Setup sensors
+    world.scene.add_default_ground_plane()
+
+    # Add RGB camera to robot
+    from omni.isaac.sensor import Camera
+
+    # Attach camera to robot (assuming chest area)
+    camera = Camera(
+        prim_path="/World/HumanoidRobot/Chest/RgbCamera",
+        frequency=30,
+        resolution=(640, 480)
+    )
+
+    # Configure camera parameters
+    camera.set_focal_length(24.0)
+    camera.set_horizontal_aperture(36.0)
+    camera.set_vertical_aperture(24.0)
+
+    # Add IMU sensor
+    from omni.isaac.core.sensors import Imu
+
+    imu = Imu(
+        prim_path="/World/HumanoidRobot/BaseLink/Imu",
+        frequency=100
+    )
+
+    print("Sensor bridge configured successfully!")
+    print("Topics available:")
+    print("- /rgb_camera/image_raw")
+    print("- /rgb_camera/camera_info")
+    print("- /imu/data")
+
+
+if __name__ == "__main__":
+    setup_sensor_bridge()
+```
+
+### Step 2: Create Sensor Bridge Launch File
+
+1. Create a launch file that bridges Isaac Sim sensors to ROS topics:
+```xml
+<!-- ~/isaac_ros_ws/src/my_vslam_config/launch/sensor_bridge.launch.xml -->
+<launch>
+  <!-- Arguments -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="robot_name" default="humanoid_robot"/>
+  <arg name="scene_file" default="humanoid_lab_scene.usd"/>
+
+  <!-- Isaac Sim -->
+  <node pkg="isaac_ros_launch" exec="isaac_sim_bridge" name="isaac_sim_bridge" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="scene_file" value="$(var scene_file)"/>
+    <param name="robot_name" value="$(var robot_name)"/>
+  </node>
+
+  <!-- RGB Camera Bridge -->
+  <node pkg="image_transport" exec="republish" name="rgb_camera_republisher" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="in" to="/isaac_sim/rgb_camera/image"/>
+    <remap from="out/compressed" to="/rgb_camera/image_raw"/>
+  </node>
+
+  <!-- Camera Info Bridge -->
+  <node pkg="topic_tools" exec="relay" name="camera_info_relay" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="in" to="/isaac_sim/rgb_camera/camera_info"/>
+    <remap from="out" to="/rgb_camera/camera_info"/>
+  </node>
+
+  <!-- IMU Bridge -->
+  <node pkg="topic_tools" exec="relay" name="imu_relay" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="in" to="/isaac_sim/imu/data"/>
+    <remap from="out" to="/imu/data"/>
+  </node>
+
+  <!-- TF Bridge -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="base_to_camera_tf" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="x" value="0.15"/>
+    <param name="y" value="0.0"/>
+    <param name="z" value="0.2"/>
+    <param name="yaw" value="0.0"/>
+    <param name="pitch" value="0.0"/>
+    <param name="roll" value="0.0"/>
+    <param name="frame_id" value="base_link"/>
+    <param name="child_frame_id" value="rgb_camera_optical_frame"/>
+  </node>
+</launch>
+```
+
+### Step 3: Verify Sensor Bridge Connection
+
+1. Test that sensors are publishing correctly:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Check available topics
+ros2 topic list | grep -E "(camera|imu|rgb)"
+
+# Monitor RGB camera topic
+ros2 topic echo /rgb_camera/image_raw --field header.stamp
+
+# Monitor camera info
+ros2 topic echo /rgb_camera/camera_info
+
+# Monitor IMU data
+ros2 topic echo /imu/data
+```
+
+## Exercise 3: VSLAM Pipeline Configuration (T073)
+
+### Step 1: Fine-tune VSLAM Parameters for Humanoid Navigation
+
+1. Create humanoid-specific VSLAM configuration:
+```yaml
+# ~/isaac_ros_ws/src/my_vslam_config/config/humanoid_vslam_params.yaml
+isaac_ros_visual_slam:
+  visual_slam:
+    ros__parameters:
+      # Use sim time for Isaac Sim integration
+      use_sim_time: true
+
+      # Humanoid-specific settings
+      enable_imu_fusion: true  # Enable for humanoid balance awareness
+      imu_topic_name: "/imu/data"
+
+      # Adjust for humanoid movement patterns
+      max_num_features: 1500  # Increased for complex humanoid environments
+      min_num_features: 100   # Higher minimum for reliable tracking
+      num_keyframes: 6        # More keyframes for smooth humanoid path
+      min_translation_distance: 0.05  # Reduced for finer humanoid movement tracking
+      min_rotation_angle: 0.05        # Reduced for better orientation tracking
+
+      # Loop closure adjustments for humanoid navigation
+      enable_loop_closure: true
+      min_loop_closure_distance: 0.8  # Reduced for indoor humanoid navigation
+      max_num_words_per_image: 150    # Increased for better recognition
+      min_word_frequency: 3           # Lower for more responsive loop closure
+
+      # Pose graph optimization for humanoid trajectories
+      optimize_every_n_poses: 5       # More frequent optimization for humanoid paths
+      pose_graph_save_file_path: "/tmp/humanoid_pose_graph.graph"
+
+      # Enhanced visualization for humanoid navigation
+      enable_slam_visualization: true
+      enable_landmark_point_cloud: true
+      enable_map_cache_point_cloud: true
+      landmark_min_num_observations: 3  # Increased for reliability
+
+      # Output settings for humanoid navigation
+      publish_graph_estimate: true
+      publish_tracked_landmarks: true
+      publish_map_cache_point_cloud: true
+
+      # Frame IDs for humanoid robot
+      camera_optical_frame_id: "rgb_camera_optical_frame"
+      base_frame_id: "base_link"
+      map_frame_id: "map"
+      odom_frame_id: "odom"
+
+      # Timing parameters for humanoid navigation
+      image_jitter_threshold_ms: 50.0  # Allow for some timing variance in humanoid movement
+      max_num_workers: 8               # Utilize more workers for complex humanoid processing
+```
+
+### Step 2: Create Comprehensive VSLAM Launch File
+
+1. Create a complete launch file that combines sensor bridge and VSLAM:
+```xml
+<!-- ~/isaac_ros_ws/src/my_vslam_config/launch/humanoid_vslam_system.launch.xml -->
+<launch>
+  <!-- Arguments -->
+  <arg name="use_sim_time" default="true"/>
+  <arg name="enable_imu_fusion" default="true"/>
+  <arg name="robot_namespace" default="humanoid_robot"/>
+  <arg name="scene_file" default="humanoid_lab_scene.usd"/>
+  <arg name="vslam_config_file" default="$(find-pkg-share my_vslam_config)/config/humanoid_vslam_params.yaml"/>
+
+  <!-- Include sensor bridge -->
+  <include file="$(find-pkg-share my_vslam_config)/launch/sensor_bridge.launch.xml">
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="robot_name" value="$(var robot_namespace)"/>
+    <arg name="scene_file" value="$(var scene_file)"/>
+  </include>
+
+  <!-- Isaac ROS Visual SLAM Node -->
+  <node pkg="isaac_ros_visual_slam" exec="visual_slam_node" name="visual_slam" namespace="$(var robot_namespace)" output="screen">
+    <param from="$(var vslam_config_file)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+
+    <!-- Remappings for humanoid robot -->
+    <remap from="visual_slam/camera_optical/camera_info" to="/rgb_camera/camera_info"/>
+    <remap from="visual_slam/camera_optical/image" to="/rgb_camera/image_raw"/>
+    <remap from="visual_slam/imu" to="/imu/data" if="$(var enable_imu_fusion)"/>
+
+    <!-- Output remappings -->
+    <remap from="visual_slam/tracking/pose_graph/landmarks" to="/$(var robot_namespace)/vslam/landmarks"/>
+    <remap from="visual_slam/visual_slam/graph" to="/$(var robot_namespace)/vslam/graph"/>
+    <remap from="visual_slam/visual_slam/imu_graph" to="/$(var robot_namespace)/vslam/imu_graph"/>
+    <remap from="visual_slam/visual_slam/map_cache_point_cloud" to="/$(var robot_namespace)/vslam/map_cache"/>
+  </node>
+
+  <!-- Isaac ROS Image Rectification Node -->
+  <node pkg="isaac_ros_image_rectifier" exec="image_rectifier_node" name="image_rectifier" namespace="$(var robot_namespace)" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <remap from="image_raw" to="/rgb_camera/image_raw"/>
+    <remap from="camera_info" to="/rgb_camera/camera_info"/>
+    <remap from="image_rect" to="/$(var robot_namespace)/rectified_rgb_image"/>
+    <remap from="camera_info_rect" to="/$(var robot_namespace)/rectified_rgb_camera_info"/>
+  </node>
+
+  <!-- TF2 Publisher for Humanoid-specific transforms -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="humanoid_specific_tfs" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <!-- Additional transforms specific to humanoid navigation -->
+    <param name="x" value="0.0"/>
+    <param name="y" value="0.0"/>
+    <param name="z" value="0.0"/>
+    <param name="yaw" value="0.0"/>
+    <param name="pitch" value="0.0"/>
+    <param name="roll" value="0.0"/>
+    <param name="frame_id" value="base_link"/>
+    <param name="child_frame_id" value="humanoid_navigation_frame"/>
+  </node>
+</launch>
+```
+
+### Step 3: Validate VSLAM Pipeline Setup
+
+1. Test the complete VSLAM pipeline:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Launch the complete system
+ros2 launch my_vslam_config humanoid_vslam_system.launch.xml
+
+# In another terminal, check the VSLAM outputs:
+ros2 topic list | grep vslam
+
+# Monitor pose estimation
+ros2 topic echo /humanoid_robot/vslam/graph
+
+# Monitor landmarks
+ros2 topic echo /humanoid_robot/vslam/landmarks
+
+# Check TF transforms
+ros2 run tf2_tools view_frames
+```
+
+## Exercise 4: Pose Estimation Validation (T074)
+
+### Step 1: Create Pose Validation Node
+
+1. Create a validation node to assess pose estimation quality:
+```python
+#!/usr/bin/env python3
+# Pose estimation validation node
+
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import PoseStamped, TransformStamped
+from nav_msgs.msg import Odometry
+from tf2_ros import TransformListener, Buffer
+from tf2_geometry_msgs import do_transform_pose
+from builtin_interfaces.msg import Time
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+import math
+
+
+class VslamPoseValidator(Node):
+    def __init__(self):
+        super().__init__('vslam_pose_validator')
+
+        # Subscribe to VSLAM pose estimates
+        self.vslam_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/humanoid_robot/vslam/graph',
+            self.vslam_pose_callback,
+            10
+        )
+
+        # Subscribe to ground truth (if available from Isaac Sim)
+        self.ground_truth_sub = self.create_subscription(
+            Odometry,
+            '/ground_truth/odometry',
+            self.ground_truth_callback,
+            10
+        )
+
+        # TF listener for additional validation
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        # Storage for pose validation
+        self.vslam_poses = []
+        self.ground_truth_poses = []
+        self.pose_errors = []
+
+        # Validation parameters
+        self.error_threshold = 0.2  # meters
+        self.rotation_threshold = 0.2  # radians (~11.5 degrees)
+
+        # Statistics
+        self.total_poses = 0
+        self.valid_poses = 0
+        self.avg_position_error = 0.0
+        self.avg_orientation_error = 0.0
+
+        self.get_logger().info("VSLAM Pose Validator initialized")
+
+    def vslam_pose_callback(self, msg):
+        """Process VSLAM pose estimates"""
+        self.get_logger().info(f"Received VSLAM pose: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}, {msg.pose.position.z:.2f})")
+
+        # Store VSLAM pose
+        self.vslam_poses.append(msg)
+        self.total_poses += 1
+
+        # If we have ground truth, validate the pose
+        if len(self.ground_truth_poses) > 0:
+            # Find closest ground truth pose by timestamp
+            gt_pose = self.find_closest_ground_truth(msg.header.stamp)
+            if gt_pose:
+                self.validate_pose_accuracy(msg, gt_pose)
+
+    def ground_truth_callback(self, msg):
+        """Process ground truth poses from Isaac Sim"""
+        self.ground_truth_poses.append(msg)
+
+    def find_closest_ground_truth(self, vslam_stamp):
+        """Find the closest ground truth pose by timestamp"""
+        if not self.ground_truth_poses:
+            return None
+
+        # Find the ground truth pose with closest timestamp
+        closest_pose = None
+        min_time_diff = float('inf')
+
+        for gt_pose in self.ground_truth_poses:
+            time_diff = abs(
+                (vslam_stamp.sec - gt_pose.header.stamp.sec) +
+                (vslam_stamp.nanosec - gt_pose.header.stamp.nanosec) * 1e-9
+            )
+
+            if time_diff < min_time_diff:
+                min_time_diff = time_diff
+                closest_pose = gt_pose
+
+        # Only return if the time difference is reasonable (e.g., < 100ms)
+        if min_time_diff < 0.1:
+            return closest_pose
+        else:
+            return None
+
+    def validate_pose_accuracy(self, vslam_pose, ground_truth_pose):
+        """Validate the accuracy of VSLAM pose estimate against ground truth"""
+        # Calculate position error
+        pos_error = math.sqrt(
+            (vslam_pose.pose.position.x - ground_truth_pose.pose.pose.position.x)**2 +
+            (vslam_pose.pose.position.y - ground_truth_pose.pose.pose.position.y)**2 +
+            (vslam_pose.pose.position.z - ground_truth_pose.pose.pose.position.z)**2
+        )
+
+        # Calculate orientation error
+        vslam_quat = [
+            vslam_pose.pose.orientation.x,
+            vslam_pose.pose.orientation.y,
+            vslam_pose.pose.orientation.z,
+            vslam_pose.pose.orientation.w
+        ]
+
+        gt_quat = [
+            ground_truth_pose.pose.pose.orientation.x,
+            ground_truth_pose.pose.pose.orientation.y,
+            ground_truth_pose.pose.pose.orientation.z,
+            ground_truth_pose.pose.pose.orientation.w
+        ]
+
+        # Convert quaternions to rotation vectors and calculate angle difference
+        try:
+            vslam_rot = R.from_quat(vslam_quat)
+            gt_rot = R.from_quat(gt_quat)
+            relative_rot = vslam_rot.inv() * gt_rot
+            orientation_error = relative_rot.magnitude()  # Returns angle in radians
+        except:
+            orientation_error = float('inf')
+
+        # Store error metrics
+        self.pose_errors.append({
+            'position_error': pos_error,
+            'orientation_error': orientation_error,
+            'timestamp': vslam_pose.header.stamp
+        })
+
+        # Update statistics
+        self.avg_position_error = sum(e['position_error'] for e in self.pose_errors) / len(self.pose_errors)
+        valid_orientation_errors = [e['orientation_error'] for e in self.pose_errors if not math.isinf(e['orientation_error'])]
+        if valid_orientation_errors:
+            self.avg_orientation_error = sum(valid_orientation_errors) / len(valid_orientation_errors)
+
+        # Check if pose is within acceptable thresholds
+        is_valid = (pos_error <= self.error_threshold and
+                   orientation_error <= self.rotation_threshold and
+                   not math.isinf(orientation_error))
+
+        if is_valid:
+            self.valid_poses += 1
+            self.get_logger().info(f"Valid pose: Pos error: {pos_error:.3f}m, Rot error: {orientation_error:.3f}rad")
+        else:
+            self.get_logger().warn(f"Invalid pose: Pos error: {pos_error:.3f}m, Rot error: {orientation_error:.3f}rad")
+
+        # Print current statistics periodically
+        if self.total_poses % 10 == 0:
+            self.print_statistics()
+
+    def print_statistics(self):
+        """Print current validation statistics"""
+        if self.total_poses > 0:
+            accuracy_rate = (self.valid_poses / self.total_poses) * 100
+            self.get_logger().info("--- VSLAM Pose Validation Statistics ---")
+            self.get_logger().info(f"Total Poses: {self.total_poses}")
+            self.get_logger().info(f"Valid Poses: {self.valid_poses}")
+            self.get_logger().info(f"Accuracy Rate: {accuracy_rate:.2f}%")
+            self.get_logger().info(f"Avg Position Error: {self.avg_position_error:.3f}m")
+            self.get_logger().info(f"Avg Orientation Error: {self.avg_orientation_error:.3f}rad")
+            self.get_logger().info("--------------------------------------")
+
+    def save_validation_results(self, filename=None):
+        """Save validation results to file"""
+        if filename is None:
+            from datetime import datetime
+            filename = f"/tmp/vslam_validation_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        import json
+        results = {
+            'total_poses': self.total_poses,
+            'valid_poses': self.valid_poses,
+            'accuracy_rate': (self.valid_poses / self.total_poses) * 100 if self.total_poses > 0 else 0,
+            'avg_position_error': self.avg_position_error,
+            'avg_orientation_error': self.avg_orientation_error,
+            'error_threshold': self.error_threshold,
+            'rotation_threshold': self.rotation_threshold,
+            'timestamp': str(self.get_clock().now().to_msg())
+        }
+
+        with open(filename, 'w') as f:
+            json.dump(results, f, indent=2)
+
+        self.get_logger().info(f"Validation results saved to {filename}")
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    validator = VslamPoseValidator()
+
+    # Run validation for a specific duration (e.g., 30 seconds)
+    import time
+    start_time = time.time()
+    duration = 30  # seconds
+
+    while time.time() - start_time < duration:
+        rclpy.spin_once(validator, timeout_sec=0.1)
+
+    # Print final statistics and save results
+    validator.print_statistics()
+    validator.save_validation_results()
+
+    validator.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+### Step 2: Run Pose Validation
+
+1. Execute the pose validation:
+```bash
+# Source the workspace
+source ~/isaac_ros_ws/install/setup.bash
+
+# Run the pose validation node
+ros2 run my_vslam_config pose_validator_node
+```
+
+2. Monitor validation results:
+```bash
+# Check validation statistics
+ros2 topic echo /vslam_validation/stats
+
+# Monitor pose errors
+ros2 topic echo /vslam_validation/errors
+```
+
+## Exercise 5: VSLAM Performance Optimization (T075)
+
+### Step 1: Performance Monitoring
+
+1. Create a performance monitoring script:
+```python
+#!/usr/bin/env python3
+# VSLAM performance monitoring
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Float32
+import time
+from collections import deque
+import statistics
+
+
+class VslamPerformanceMonitor(Node):
+    def __init__(self):
+        super().__init__('vslam_performance_monitor')
+
+        # Subscribe to input and output topics
+        self.image_sub = self.create_subscription(
+            Image,
+            '/rgb_camera/image_raw',
+            self.image_callback,
+            10
+        )
+
+        self.pose_sub = self.create_subscription(
+            PoseStamped,
+            '/humanoid_robot/vslam/graph',
+            self.pose_callback,
+            10
+        )
+
+        # Publishers for performance metrics
+        self.fps_pub = self.create_publisher(Float32, '/vslam/performance/fps', 10)
+        self.latency_pub = self.create_publisher(Float32, '/vslam/performance/latency', 10)
+        self.processing_time_pub = self.create_publisher(Float32, '/vslam/performance/processing_time', 10)
+
+        # Performance tracking
+        self.image_timestamps = deque(maxlen=100)
+        self.pose_timestamps = deque(maxlen=100)
+        self.processing_times = deque(maxlen=100)
+
+        # Timing for FPS calculation
+        self.frame_count = 0
+        self.last_fps_calc_time = self.get_clock().now()
+
+        self.get_logger().info("VSLAM Performance Monitor initialized")
+
+    def image_callback(self, msg):
+        """Track input image timestamps for FPS calculation"""
+        current_time = self.get_clock().now()
+        self.image_timestamps.append(current_time.to_msg())
+
+        # Calculate FPS every 30 frames
+        self.frame_count += 1
+        if self.frame_count % 30 == 0:
+            time_diff = (current_time - self.last_fps_calc_time).nanoseconds / 1e9
+            if time_diff > 0:
+                fps = 30.0 / time_diff
+                fps_msg = Float32()
+                fps_msg.data = fps
+                self.fps_pub.publish(fps_msg)
+
+                self.get_logger().info(f"Current FPS: {fps:.2f}")
+                self.last_fps_calc_time = current_time
+
+    def pose_callback(self, msg):
+        """Calculate processing latency and time"""
+        current_time = self.get_clock().now()
+        input_time = rclpy.time.Time.from_msg(msg.header.stamp)
+
+        # Calculate latency (time from input to output)
+        if (current_time.nanoseconds - input_time.nanoseconds) > 0:
+            latency = (current_time.nanoseconds - input_time.nanoseconds) / 1e9
+            latency_msg = Float32()
+            latency_msg.data = latency
+            self.latency_pub.publish(latency_msg)
+
+            # Store for statistics
+            self.pose_timestamps.append(msg.header.stamp)
+
+            # Calculate processing time statistics
+            if len(self.processing_times) < 100:  # Only track recent values
+                self.processing_times.append(latency)
+
+            avg_processing_time = statistics.mean(self.processing_times) if self.processing_times else 0.0
+
+            # Publish average processing time
+            proc_time_msg = Float32()
+            proc_time_msg.data = avg_processing_time
+            self.processing_time_pub.publish(proc_time_msg)
+
+            self.get_logger().info(f"Latency: {latency:.3f}s, Avg: {avg_processing_time:.3f}s")
+
+    def print_performance_stats(self):
+        """Print current performance statistics"""
+        if self.processing_times:
+            avg_latency = statistics.mean(self.processing_times)
+            max_latency = max(self.processing_times)
+            min_latency = min(self.processing_times)
+
+            self.get_logger().info("--- VSLAM Performance Stats ---")
+            self.get_logger().info(f"Avg Latency: {avg_latency:.3f}s")
+            self.get_logger().info(f"Min Latency: {min_latency:.3f}s")
+            self.get_logger().info(f"Max Latency: {max_latency:.3f}s")
+            if len(self.processing_times) > 1:
+                std_dev = statistics.stdev(self.processing_times)
+                self.get_logger().info(f"Std Dev: {std_dev:.3f}s")
+            self.get_logger().info("-----------------------------")
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    monitor = VslamPerformanceMonitor()
+
+    # Run performance monitoring
+    rclpy.spin(monitor)
+
+    monitor.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+### Step 2: Optimize VSLAM Parameters
+
+Based on performance monitoring, fine-tune the parameters:
+
+```yaml
+# ~/isaac_ros_ws/src/my_vslam_config/config/optimized_vslam_params.yaml
+isaac_ros_visual_slam:
+  visual_slam:
+    ros__parameters:
+      # Optimized parameters for humanoid navigation
+      use_sim_time: true
+      enable_imu_fusion: true
+
+      # Performance optimizations
+      max_num_features: 1200    # Balanced for performance and accuracy
+      min_num_features: 80      # Maintain sufficient features for tracking
+      num_keyframes: 5          # Good balance for humanoid movement
+      min_translation_distance: 0.1  # Reasonable for humanoid steps
+      min_rotation_angle: 0.1        # Reasonable for humanoid turns
+
+      # Loop closure optimizations
+      enable_loop_closure: true
+      min_loop_closure_distance: 1.0  # Good for navigation accuracy
+      max_num_words_per_image: 120    # Balanced for recognition
+      min_word_frequency: 4           # Good for stable recognition
+
+      # Optimization frequency
+      optimize_every_n_poses: 8       # Balance between accuracy and performance
+
+      # Performance settings
+      image_jitter_threshold_ms: 100.0  # Accommodate timing variations
+      max_num_workers: 6               # Balance CPU utilization
+      enable_slam_visualization: true  # Keep for debugging
+
+      # Memory management
+      max_map_cache_size: 5000         # Limit memory usage
+      landmark_min_num_observations: 2 # Balance between quality and quantity
+
+      # Frame IDs
+      camera_optical_frame_id: "rgb_camera_optical_frame"
+      base_frame_id: "base_link"
+      map_frame_id: "map"
+      odom_frame_id: "odom"
+```
+
+### Step 3: Troubleshooting Common VSLAM Issues
+
+1. Create a troubleshooting guide for common issues:
+
+```markdown
+## VSLAM Troubleshooting Guide
+
+### Issue 1: Lost Tracking
+**Symptoms**: VSLAM stops providing pose estimates or provides erratic poses
+**Causes**:
+- Insufficient visual features in the environment
+- Rapid camera movement
+- Low light conditions
+- Reflective or textureless surfaces
+
+**Solutions**:
+- Add more visual features to the environment (markers, textures)
+- Reduce robot movement speed during initialization
+- Improve lighting conditions
+- Adjust feature detection parameters:
+  ```yaml
+  max_num_features: 2000  # Increase to detect more features
+  min_num_features: 50    # Lower minimum threshold
+  ```
+
+### Issue 2: Drift Accumulation
+**Symptoms**: Gradual deviation from true position over time
+**Causes**:
+- Infrequent loop closure
+- Poor loop closure detection
+- Accumulated odometry errors
+
+**Solutions**:
+- Enable and tune loop closure:
+  ```yaml
+  enable_loop_closure: true
+  min_loop_closure_distance: 0.5  # Detect loops sooner
+  ```
+- Increase landmark observations:
+  ```yaml
+  landmark_min_num_observations: 5  # Require more observations
+  ```
+
+### Issue 3: High Computational Load
+**Symptoms**: Low FPS, high CPU/GPU usage
+**Causes**:
+- Too many features being processed
+- High-resolution images
+- Complex optimization
+
+**Solutions**:
+- Reduce feature count:
+  ```yaml
+  max_num_features: 800   # Reduce for performance
+  min_num_features: 50
+  ```
+- Use lower image resolution
+- Increase optimization interval:
+  ```yaml
+  optimize_every_n_poses: 15  # Optimize less frequently
+  ```
+
+### Issue 4: Inconsistent Pose Estimates
+**Symptoms**: Jerky or inconsistent pose estimates
+**Causes**:
+- Timing issues between sensors
+- Poor image quality
+- Incorrect camera calibration
+
+**Solutions**:
+- Verify camera calibration:
+  ```bash
+  ros2 run camera_calibration cameracalibrator --size 8x6 --square 0.108 image:=/rgb_camera/image_raw camera:=/rgb_camera
+  ```
+- Check timing synchronization:
+  ```bash
+  # Monitor timing differences
+  rostopic delay /rgb_camera/image_raw
+  ```
+- Add temporal filtering:
+  ```yaml
+  image_jitter_threshold_ms: 50.0  # Allow for timing variations
+  ```
+```
+
+## Lab Conclusion
+
+In this lab, you have successfully:
+- Configured the Isaac ROS VSLAM pipeline for humanoid robot perception
+- Set up the sensor bridge between Isaac Sim and ROS
+- Validated pose estimation accuracy
+- Monitored and optimized VSLAM performance
+- Learned troubleshooting techniques for common VSLAM issues
+
+The VSLAM pipeline you've configured provides the foundation for reliable pose estimation that will feed into the Nav2 path planning system in the next lab.
+
+## Troubleshooting Tips
+
+1. **Tracking Loss**: If VSLAM loses tracking frequently, ensure the environment has sufficient visual features and the camera is positioned appropriately on the humanoid robot.
+
+2. **Performance Issues**: If experiencing low FPS, try reducing the number of features or lowering the image resolution temporarily.
+
+3. **Pose Drift**: For accumulating drift, ensure loop closure is enabled and the environment has distinctive features for recognition.
+
+4. **Integration Problems**: If Isaac Sim and ROS are not communicating properly, check the bridge configuration and ensure both systems are using the same coordinate frames.
+
+## Next Steps
+
+Proceed to Lab 3: Nav2 Integration and Bipedal Path Planning to integrate the VSLAM outputs with the Nav2 navigation stack for complete humanoid navigation.

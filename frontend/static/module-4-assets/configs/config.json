@@ -1,0 +1,25 @@
+{
+  "vla_system": {
+    "voice_activation_keyword": "hey robot",
+    "stt_engine": "google",
+    "openai_model": "gpt-4-turbo",
+    "confidence_threshold": 0.5,
+    "max_recovery_attempts": 3,
+    "response_timeout": 30,
+    "latency_target": 200,
+    "supported_languages": ["en-US"],
+    "audio": {
+      "sample_rate": 16000,
+      "chunk_size": 1024,
+      "device_index": null
+    },
+    "ros2": {
+      "namespace": "vla",
+      "action_servers": {
+        "navigation": "/navigate_to_pose",
+        "manipulation": "/manipulation_controller",
+        "perception": "/perception_pipeline"
+      }
+    }
+  }
+}

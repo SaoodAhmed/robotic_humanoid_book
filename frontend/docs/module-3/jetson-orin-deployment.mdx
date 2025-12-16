@@ -1,0 +1,596 @@
+---
+title: "Jetson/Orin Deployment Guide"
+sidebar_position: 5
+---
+
+# Jetson/Orin Deployment Guide: From Simulation to Hardware
+
+## Overview
+
+This guide covers the process of transferring models, algorithms, and workflows developed in the Isaac Sim → Isaac ROS → Nav2 pipeline to actual Jetson/Orin-class hardware for deployment on physical humanoid robots. The transfer process involves optimizing models for edge inference, adapting simulation-based algorithms to real-world constraints, and ensuring reliable operation on resource-constrained platforms.
+
+## Learning Objectives
+
+After completing this guide, students will be able to:
+- Understand the differences between simulation and real-world deployment
+- Optimize perception models for Jetson/Orin edge inference
+- Adapt navigation algorithms for real-world sensor data and constraints
+- Deploy Isaac ROS pipelines to Jetson/Orin hardware platforms
+- Validate performance and reliability of deployed systems
+
+## Prerequisites
+
+Before proceeding with hardware deployment, ensure you have:
+- Completed Module 3 simulation exercises with Isaac Sim and Isaac ROS
+- Trained perception models using synthetic data from Isaac Sim
+- Validated navigation algorithms in simulation
+- Access to Jetson AGX Orin, Jetson Orin NX, or Jetson Orin Nano development kit
+- Understanding of embedded systems and real-world robotics constraints
+
+## Hardware Requirements
+
+### Jetson Platform Options
+
+1. **Jetson AGX Orin (Recommended)**:
+   - 64-core ARM v8.2 CPU
+   - 2048-core NVIDIA GPU
+   - 32GB or 64GB LPDDR5 memory
+   - Up to 275 TOPS AI performance
+   - Best for complex perception and navigation tasks
+
+2. **Jetson Orin NX**:
+   - 8-core ARM v8.2 CPU
+   - 1024-core NVIDIA GPU
+   - 8GB or 16GB LPDDR5 memory
+   - Up to 100 TOPS AI performance
+   - Good balance of performance and power consumption
+
+3. **Jetson Orin Nano**:
+   - 4-core ARM v8.2 CPU
+   - 512-core NVIDIA GPU
+   - 4GB or 8GB LPDDR4x memory
+   - Up to 40 TOPS AI performance
+   - Cost-effective for simpler tasks
+
+### Additional Hardware Requirements
+- Compatible carrier board with sufficient I/O for robot sensors
+- Power supply appropriate for robot platform
+- Real sensors (cameras, LiDAR, IMU) matching simulation specifications
+- Network connectivity for development and debugging
+
+## Model Optimization for Edge Deployment
+
+### TensorRT Conversion
+
+To optimize perception models for Jetson/Orin platforms, convert them to TensorRT format:
+
+```bash
+# Install TensorRT tools
+sudo apt update
+sudo apt install tensorrt tensorrt-dev python3-tensorrt
+
+# Convert ONNX model to TensorRT
+trtexec --onnx=model.onnx --saveEngine=model.plan --fp16 --workspace=2048
+```
+
+### Model Quantization
+
+Reduce model size and improve inference speed using quantization:
+
+```python
+import tensorrt as trt
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+def create_quantized_engine(onnx_file_path, engine_file_path):
+    """Create a quantized TensorRT engine from ONNX model"""
+    # Create TensorRT logger
+    logger = trt.Logger(trt.Logger.WARNING)
+
+    # Create builder and network
+    builder = trt.Builder(logger)
+    network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+    config = builder.create_builder_config()
+
+    # Enable INT8 quantization
+    config.set_flag(trt.BuilderFlag.INT8)
+
+    # Parse ONNX model
+    parser = trt.OnnxParser(network, logger)
+    with open(onnx_file_path, 'rb') as model:
+        parser.parse(model.read())
+
+    # Build engine
+    engine = builder.build_engine(network, config)
+
+    # Save engine
+    with open(engine_file_path, 'wb') as f:
+        f.write(engine.serialize())
+
+    return engine
+```
+
+### Performance Optimization
+
+Optimize model performance for real-time operation:
+
+```bash
+# Check TensorRT optimization options
+trtexec --help
+
+# Optimize for specific Jetson platform
+trtexec --onnx=model.onnx \
+        --saveEngine=optimized_model.plan \
+        --fp16 \
+        --workspace=2048 \
+        --minShapes=input:1x3x224x224 \
+        --optShapes=input:8x3x224x224 \
+        --maxShapes=input:16x3x224x224 \
+        --timingCacheFile=timing.cache
+```
+
+## Isaac ROS Pipeline Adaptation
+
+### Sensor Bridge Configuration
+
+Adapt Isaac ROS pipelines for real sensor data:
+
+```yaml
+# jetson_hardware_config.yaml
+camera_bridge:
+  ros__parameters:
+    # Use real camera topics instead of Isaac Sim topics
+    image_topic: "/camera/color/image_raw"
+    camera_info_topic: "/camera/color/camera_info"
+    # Hardware-specific parameters
+    use_hardware_timestamps: true
+    exposure_compensation: 0.0
+    gain: 1.0
+
+imu_bridge:
+  ros__parameters:
+    # Use real IMU topic
+    imu_topic: "/imu/data"
+    # Calibrate for specific IMU model
+    linear_acceleration_covariance: [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
+    angular_velocity_covariance: [0.02, 0, 0, 0, 0.02, 0, 0, 0, 0.02]
+```
+
+### Real-time Performance Tuning
+
+Optimize Isaac ROS pipelines for real-time performance on Jetson:
+
+```bash
+# Set CPU governor to performance mode
+sudo nvpmodel -m 0  # Maximum performance mode
+sudo jetson_clocks  # Lock clocks to maximum frequency
+
+# Monitor performance
+sudo tegrastats  # Real-time monitoring of Jetson performance
+```
+
+### Memory Management
+
+Configure memory usage for constrained environments:
+
+```python
+# Memory-optimized Isaac ROS node
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import numpy as np
+
+class OptimizedPerceptionNode(Node):
+    def __init__(self):
+        super().__init__('optimized_perception_node')
+
+        # Initialize with memory constraints
+        self.declare_parameter('max_buffer_size', 1)
+        self.max_buffer_size = self.get_parameter('max_buffer_size').value
+
+        # Use single-threaded executor for predictable memory usage
+        self.bridge = CvBridge()
+
+        # Subscribe to camera data with QoS for real-time
+        self.subscription = self.create_subscription(
+            Image,
+            '/camera/color/image_raw',
+            self.image_callback,
+            1  # Minimal queue size
+        )
+
+        # Pre-allocate buffers to avoid memory fragmentation
+        self.image_buffer = None
+        self.result_buffer = None
+
+    def image_callback(self, msg):
+        """Process image with memory optimization"""
+        # Convert ROS image to OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+
+        # Pre-allocate result buffer if needed
+        if self.result_buffer is None:
+            self.result_buffer = np.zeros((cv_image.shape[0], cv_image.shape[1]), dtype=np.float32)
+
+        # Process image using optimized method
+        result = self.process_image_optimized(cv_image)
+
+        # Publish result
+        self.publish_result(result)
+
+    def process_image_optimized(self, image):
+        """Memory-optimized image processing"""
+        # Implement optimized processing algorithm
+        # Reuse buffers, avoid memory allocation in real-time loop
+        pass
+```
+
+## Nav2 Configuration for Hardware
+
+### Hardware-Specific Parameters
+
+Configure Nav2 for real-world constraints:
+
+```yaml
+# jetson_nav2_params.yaml
+amcl:
+  ros__parameters:
+    use_sim_time: false  # Real hardware, not simulation
+    alpha1: 0.1          # Reduced for real-world sensor noise
+    alpha2: 0.1
+    alpha3: 0.1
+    alpha4: 0.1
+    alpha5: 0.05
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.2
+    do_beamskip: true    # Enable for real-world sensor data
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    max_beams: 60        # Reduced for performance
+    max_particles: 2000  # Reduced for memory
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.95
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_enabled: true
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.2
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+
+controller_server:
+  ros__parameters:
+    use_sim_time: false
+    controller_frequency: 5.0  # Reduced for stability on hardware
+    min_x_velocity_threshold: 0.05
+    min_y_velocity_threshold: 0.1
+    min_theta_velocity_threshold: 0.05
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugin: "goal_checker"
+    controller_plugins: ["FollowPath"]
+
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 10  # Reduced for real-time constraints
+      model_dt: 0.2   # Increased for stability
+      batch_size: 300 # Reduced for computational efficiency
+      vx_std: 0.2
+      vy_std: 0.3
+      wz_std: 0.3
+      vx_max: 0.3  # Reduced for hardware safety
+      vx_min: -0.15
+      vy_max: 0.2
+      vy_min: -0.2
+      wz_max: 0.3  # Reduced for stability
+      wz_min: -0.3
+      iteration_count: 1
+      prune_distance: 1.5
+      transform_tolerance: 0.2
+      alpha: 0.0
+      beta: 0.8
+      gamma: 0.2
+      motion_model: "LeggedRobot"  # Custom motion model for bipedal
+      trajectory_visualization_plugin: "nav2_trajectory_utils::TrajectoryViz"
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 4.0  # Reduced for performance
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: false
+      rolling_window: True
+      width: 6  # Reduced for performance
+      height: 6
+      resolution: 0.05
+      robot_radius: 0.3  # Adjusted for hardware
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0  # Adjusted for real-world safety
+        inflation_radius: 0.6     # Adjusted for hardware
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.2
+        z_voxels: 8  # Reduced for memory
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0  # Reduced for real-world
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5  # Reduced for real-world
+          obstacle_min_range: 0.0
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 0.5  # Reduced for performance
+      publish_frequency: 0.2
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: false
+      robot_radius: 0.3
+      resolution: 0.05
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.8
+
+      always_send_full_costmap: True
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 0.2  # Reduced for complex planning
+    use_sim_time: false
+    planner_plugins: ["GridBased"]
+
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5  # Reduced for hardware precision
+      use_astar: true
+      allow_unknown: true
+```
+
+## Deployment Workflow
+
+### 1. Cross-Compilation Setup
+
+Set up cross-compilation for Jetson platforms:
+
+```bash
+# Install cross-compilation tools
+sudo apt install crossbuild-essential-arm64
+
+# Set up Docker for cross-compilation
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+# Build for ARM64 architecture
+colcon build --merge-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/opt/ros/humble/share/ament_cmake_cross_compile/cmake/toolchain.arm64.cmake
+```
+
+### 2. Container-Based Deployment
+
+Use Docker containers for consistent deployment:
+
+```dockerfile
+# Dockerfile for Isaac ROS on Jetson
+FROM nvcr.io/nvidia/isaac-ros:ros-humble-isaac-ros-main as base
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy application code
+COPY . /app
+WORKDIR /app
+
+# Install Python dependencies
+RUN pip3 install -r requirements.txt
+
+# Set environment variables
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_REQUIRE_CUDA="cuda>=11.0"
+
+# Set entrypoint
+ENTRYPOINT ["ros2", "launch", "my_robot_bringup", "jetson_launch.py"]
+```
+
+### 3. Hardware Integration
+
+Integrate with actual robot hardware:
+
+```python
+# hardware_integration.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image, Imu, LaserScan
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+import cv2
+from cv_bridge import CvBridge
+
+class HardwareIntegrationNode(Node):
+    def __init__(self):
+        super().__init__('hardware_integration_node')
+
+        # Initialize interfaces to real hardware
+        self.bridge = CvBridge()
+
+        # Subscribe to real sensors
+        self.image_sub = self.create_subscription(
+            Image, '/camera/color/image_raw', self.image_callback, 10)
+        self.imu_sub = self.create_subscription(
+            Imu, '/imu/data', self.imu_callback, 10)
+        self.lidar_sub = self.create_subscription(
+            LaserScan, '/scan', self.lidar_callback, 10)
+
+        # Publish to real actuators
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.odom_pub = self.create_publisher(Odometry, '/odom', 10)
+
+        # Timer for hardware loop
+        self.timer = self.create_timer(0.1, self.hardware_loop)
+
+        self.get_logger().info('Hardware integration node started')
+
+    def image_callback(self, msg):
+        """Process image from real camera"""
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        # Process image using Isaac ROS perception pipeline
+        pass
+
+    def imu_callback(self, msg):
+        """Process IMU data from real sensor"""
+        # Use IMU data for state estimation
+        pass
+
+    def lidar_callback(self, msg):
+        """Process LiDAR data from real sensor"""
+        # Use LiDAR data for navigation
+        pass
+
+    def hardware_loop(self):
+        """Main hardware control loop"""
+        # Implement control logic for real hardware
+        pass
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = HardwareIntegrationNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Validation and Testing
+
+### Performance Validation
+
+Validate performance on Jetson hardware:
+
+```bash
+# Monitor CPU and GPU usage
+watch -n 1 'nvidia-smi'
+
+# Monitor ROS 2 topics
+ros2 topic hz /camera/color/image_raw
+ros2 topic hz /isaac_ros/vslam/pose
+
+# Check memory usage
+free -h
+cat /proc/meminfo
+
+# Monitor temperature
+cat /sys/devices/virtual/thermal/thermal_zone*/temp
+```
+
+### Real-World Testing
+
+Test the deployed system in real-world scenarios:
+
+```bash
+# Launch the complete system on Jetson
+ros2 launch my_robot_bringup jetson_bringup.launch.py
+
+# Send navigation goals
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: 'map'}, pose: {position: {x: 1.0, y: 1.0, z: 0.0}, orientation: {w: 1.0}}}}"
+
+# Monitor system performance
+ros2 run rqt_plot rqt_plot
+```
+
+## Troubleshooting Common Issues
+
+### Issue 1: Performance Degradation
+- **Symptoms**: Lower frame rates, delayed responses
+- **Solutions**:
+  - Reduce model complexity
+  - Lower sensor data rates
+  - Optimize algorithm parameters
+
+### Issue 2: Memory Constraints
+- **Symptoms**: Out of memory errors, system instability
+- **Solutions**:
+  - Reduce buffer sizes
+  - Use memory pooling
+  - Optimize data structures
+
+### Issue 3: Sensor Calibration
+- **Symptoms**: Inaccurate perception or navigation
+- **Solutions**:
+  - Recalibrate sensors
+  - Update camera parameters
+  - Verify TF transforms
+
+## Best Practices
+
+1. **Start Simple**: Begin with basic functionality and gradually add complexity
+2. **Monitor Resources**: Continuously monitor CPU, GPU, and memory usage
+3. **Validate Safety**: Ensure all safety mechanisms are in place
+4. **Test Incrementally**: Test each component before integrating
+5. **Document Differences**: Keep track of simulation vs. reality differences
+
+## Next Steps
+
+After successfully deploying to Jetson/Orin hardware:
+1. Conduct extensive real-world testing
+2. Fine-tune parameters based on real-world performance
+3. Implement additional safety and recovery behaviors
+4. Prepare for integration with the complete humanoid robot system
+5. Document lessons learned for future deployments
+
+This guide provides the foundation for transferring simulation-based development to real hardware deployment on Jetson/Orin platforms. The key is to understand the constraints and differences between simulation and reality, and to optimize accordingly.

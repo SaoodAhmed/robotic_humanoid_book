@@ -1,0 +1,89 @@
+---
+sidebar_position: 2
+---
+
+# VLA System Data Models
+
+## Overview
+This document defines the core data models used in the Vision-Language-Action (VLA) system. These models represent the key entities and their relationships in the VLA architecture.
+
+## Voice Command Entity
+
+The Voice Command entity represents a natural language input from a student that triggers robot behavior.
+
+### Fields
+- `id`: String (unique identifier)
+- `text`: String (transcribed speech content)
+- `timestamp`: DateTime (when command was received)
+- `confidence`: Float (speech recognition confidence score)
+- `metadata`: Dict (additional context like source, environment noise level)
+
+### Validation
+- Text must not be empty
+- Confidence must be > 0.5 for processing
+
+### State Transitions
+- Raw → Transcribed → Processed → Actioned
+
+## Action Plan Entity
+
+The Action Plan entity represents a structured sequence of ROS 2 actions generated from natural language, defining the steps needed to complete a requested task.
+
+### Fields
+- `id`: String (unique identifier)
+- `voice_command_id`: String (reference to originating voice command)
+- `actions`: List[Dict] (sequence of ROS 2 actions)
+- `status`: Enum (pending, executing, completed, failed, cancelled)
+- `created_at`: DateTime
+- `completed_at`: DateTime (nullable)
+- `error_info`: Dict (details if failed)
+
+### Validation
+- Must contain at least one valid ROS 2 action
+
+### State Transitions
+- Pending → Executing → [Completed | Failed | Cancelled]
+
+## VLA Control Loop State Entity
+
+The VLA Control Loop State entity represents the integrated system that coordinates vision, language processing, and physical action execution in a continuous cycle.
+
+### Fields
+- `current_state`: Enum (idle, listening, processing, planning, executing, error, recovery)
+- `active_plan_id`: String (nullable, current action plan being executed)
+- `last_error`: Dict (nullable, details of last error)
+- `recovery_attempts`: Integer (count of recovery attempts)
+
+### Validation
+- State transitions must follow valid FSM transitions
+
+### State Transitions
+- Idle ↔ Listening (on voice activation)
+- Listening → Processing (on voice command received)
+- Processing → Planning (after speech-to-text)
+- Planning → Executing (after LLM action plan generated)
+- Executing → [Idle | Error] (on completion or failure)
+- Error → Recovery (on recovery attempt)
+- Recovery → [Idle | Error] (on success or continued failure)
+
+## Simulation Environment Entity
+
+The Simulation Environment entity represents the virtual space where humanoid robot executes tasks with realistic physics and sensor feedback.
+
+### Fields
+- `name`: String (environment name)
+- `description`: String (environment description)
+- `objects`: List[Dict] (objects in the environment)
+- `robot_config`: Dict (robot configuration in this environment)
+- `navigation_goals`: List[Dict] (valid navigation goals)
+
+### Validation
+- Must contain valid URDF/SDF definitions
+
+## Relationships
+
+```
+Voice Command (1) → (0..1) Action Plan
+Action Plan (1) → (1) VLA Control Loop State
+Simulation Environment (1) → (N) Action Plans (executed in this environment)
+```

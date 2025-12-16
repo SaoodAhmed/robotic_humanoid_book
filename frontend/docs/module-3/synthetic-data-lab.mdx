@@ -1,0 +1,436 @@
+# Lab Exercise: Isaac Sim Scene Creation & Synthetic Data Export
+
+## Overview
+
+This lab exercise provides hands-on experience with creating photorealistic scenes in Isaac Sim and generating synthetic datasets including RGB images, depth maps, and semantic segmentation masks. Students will apply the concepts learned in previous sections to create a complete synthetic dataset suitable for training perception models.
+
+## Learning Objectives
+
+After completing this lab, students will be able to:
+- Create a structured scene with multiple objects and appropriate lighting
+- Configure Isaac Sim Replicator for synthetic dataset generation
+- Generate RGB images, depth maps, and semantic segmentation masks
+- Validate and analyze the generated dataset
+- Understand the relationship between scene complexity and performance
+
+## Prerequisites
+
+Before starting this lab, students should:
+- Complete the Isaac Sim installation and basic usage tutorials
+- Understand USD scene structure and hierarchy
+- Know how to configure lighting and physics properties
+- Have access to an RTX-capable workstation with Isaac Sim installed
+
+## Lab Setup
+
+### Required Hardware
+- RTX 3080 or better (minimum RTX 2060 with 8GB VRAM)
+- 32GB RAM (minimum 16GB)
+- Ubuntu 22.04 LTS
+- Isaac Sim installed and verified
+
+### Expected Duration
+- Setup: 15 minutes
+- Scene Creation: 30 minutes
+- Dataset Generation: 45 minutes (variable based on complexity and number of frames)
+- Validation: 15 minutes
+- Total: Approximately 105 minutes
+
+## Lab Steps
+
+### Step 1: Scene Setup and Configuration (30 minutes)
+
+#### 1.1 Initialize New Scene
+1. Launch Isaac Sim
+2. Create a new scene: `File → New`
+3. Save the scene as `lab_scene_01.usd` in your working directory
+
+#### 1.2 Create Environment Structure
+Organize your scene with the following hierarchy:
+```
+/World
+├── PhysicsScene
+├── Environment
+│   ├── GroundPlane
+│   ├── Walls
+│   └── Objects
+├── Lighting
+│   ├── MainLight
+│   └── FillLight
+├── Sensors
+│   └── Camera
+└── Simulation
+```
+
+#### 1.3 Create Ground Plane
+1. Add a ground plane primitive:
+   - Right-click `/World/Environment` → `Create → Primitive → Plane`
+   - Name it `GroundPlane`
+   - Scale to 8m x 8m (set scale to [8, 8, 1])
+
+#### 1.4 Add Walls
+Create a simple room structure:
+1. Add 4 wall planes as children of `/World/Environment/Walls`:
+   - Front wall: Position [0, -4, 1], Scale [8, 0.2, 2]
+   - Back wall: Position [0, 4, 1], Scale [8, 0.2, 2]
+   - Left wall: Position [-4, 0, 1], Scale [0.2, 8, 2]
+   - Right wall: Position [4, 0, 1], Scale [0.2, 8, 2]
+
+#### 1.5 Add Objects to Scene
+Create 5-7 objects of different shapes and materials:
+1. Add objects under `/World/Environment/Objects`:
+   - 2 Cubes of different sizes and colors
+   - 2 Spheres of different sizes and colors
+   - 1 Cylinder
+   - 1 Cone
+   - 1 Capsule
+
+2. Position objects within the room boundaries
+3. Apply different materials to each object
+4. Ensure objects do not intersect with each other
+
+#### 1.6 Configure Physics Properties
+1. Add static colliders to ground plane and walls
+2. Add rigid bodies to small objects (spheres, small cubes) so they can move with physics
+3. Configure appropriate mass and friction values
+
+#### 1.7 Set Up Lighting
+1. Add a dome light as `/World/Lighting/Environment`:
+   - Intensity: 0.8
+   - Color: [0.2, 0.2, 0.2]
+   - Use a basic sky texture
+
+2. Add a main light as `/World/Lighting/MainLight`:
+   - Type: RectLight
+   - Position: [0, 0, 3]
+   - Width: 2, Height: 2
+   - Intensity: 600
+   - Color: [0.98, 0.92, 0.84] (warm white)
+
+### Step 2: Camera and Sensor Configuration (15 minutes)
+
+#### 2.1 Add Camera
+1. Create a camera under `/World/Sensors`:
+   - Name: `DatasetCamera`
+   - Position: [0, -6, 1.5] (outside the room, looking in)
+   - Rotation: Point toward the center of the room
+
+#### 2.2 Configure Camera Properties
+1. In the Property panel, set camera properties:
+   - Resolution: 1920x1080 (or 1280x720 if performance is an issue)
+   - Focal Length: 24mm
+   - Focus Distance: 5m
+
+#### 2.3 Test Camera View
+1. Select the camera in the viewport
+2. Verify the view captures the entire scene appropriately
+3. Adjust position if needed to ensure all objects are visible
+
+### Step 3: Replicator Configuration (20 minutes)
+
+#### 3.1 Open Replicator Extension
+1. Open the Replicator extension: `Window → Replicator`
+2. Ensure the extension loads without errors
+
+#### 3.2 Create Basic Replicator Script
+Create a Python script to configure Replicator for RGB, depth, and semantic segmentation:
+
+```python
+import omni.replicator.core as rep
+
+# Create render product from camera
+camera = rep.create.camera()
+render_product = rep.create.render_product(camera, (1920, 1080))
+
+# Create annotators
+rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+rgb_annotator.attach(render_product)
+
+depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+depth_annotator.attach(render_product)
+
+semantic_annotator = rep.AnnotatorRegistry.get_annotator("semantic_segmentation")
+semantic_annotator.attach(render_product)
+
+# Randomize lighting slightly
+@rep.randomizer
+def randomize_lighting():
+    lights = rep.get.light()
+
+    with rep.trigger.on_frame():
+        # Randomize light intensity slightly
+        rep.randomizer.light.intensity(
+            intensity=rep.distribution.normal(mean=600, std=50),
+            light=lights
+        )
+
+        # Randomize light color slightly
+        rep.randomizer.light.color(
+            color=rep.distribution.uniform((0.9, 0.85, 0.8), (1.0, 0.95, 0.9)),
+            light=lights
+        )
+
+randomize_lighting()
+
+# Randomize object positions slightly
+@rep.randomizer
+def randomize_objects():
+    # Get all objects in the scene except ground and walls
+    objects = rep.get.prims(path_pattern="/World/Environment/Objects/*")
+
+    with rep.trigger.on_frame():
+        # Randomize positions slightly
+        rep.modify.pose(
+            prim=objects,
+            position=rep.distribution.uniform((-0.5, -0.5, 0), (0.5, 0.5, 0)),
+            rotation=rep.distribution.uniform((0, 0, 0), (0, 0, 0.1))  # Small rotation variation
+        )
+
+randomize_objects()
+
+# Create writer for dataset export
+writer = rep.WriterRegistry.get("BasicWriter")
+writer.initialize(
+    output_dir="output/synthetic_dataset",
+    rgb=True,
+    depth=True,
+    semantic_segmentation=True,
+    bounding_box_2d_tight=True,
+    instance_segmentation=True
+)
+```
+
+#### 3.3 Configure Domain Randomization
+Add domain randomization to increase dataset diversity:
+
+```python
+# Add more domain randomization functions
+@rep.randomizer
+def randomize_materials():
+    # Get all objects in the scene
+    objects = rep.get.prims(path_pattern="/World/Environment/Objects/*")
+
+    with rep.trigger.on_frame():
+        # Randomize object colors
+        rep.randomizer.color(
+            colors=rep.distribution.uniform((0.1, 0.1, 0.1), (1.0, 1.0, 1.0)),
+            count=1
+        )
+
+        # Randomize roughness
+        rep.randomizer.roughness(
+            roughness=rep.distribution.uniform(0.1, 0.9)
+        )
+
+randomize_materials()
+```
+
+### Step 4: Dataset Generation (45 minutes)
+
+#### 4.1 Execute Generation
+1. Save your scene
+2. Run the Replicator script in Isaac Sim
+3. Generate 100 frames of data initially to test the pipeline
+4. Monitor the output directory for generated files
+
+#### 4.2 Verify Initial Output
+1. Check the `output/synthetic_dataset` directory
+2. Verify that RGB images, depth maps, and semantic segmentation files are being created
+3. Check file naming and structure
+4. Open a few sample files to verify quality
+
+#### 4.3 Generate Complete Dataset
+Once initial verification is successful:
+1. Modify the script to generate 500 frames (or more based on available time/computing resources)
+2. Execute the full generation
+3. Monitor performance metrics (FPS, memory usage)
+
+### Step 5: Dataset Validation and Analysis (15 minutes)
+
+#### 5.1 Validate Dataset Structure
+Create a validation script to check the generated dataset:
+
+```python
+import os
+import json
+import cv2
+from PIL import Image
+import numpy as np
+
+def validate_dataset(dataset_path):
+    """Validate synthetic dataset structure and content"""
+    print(f"Validating dataset at: {dataset_path}")
+
+    # Check required directories exist
+    required_dirs = ["rgb", "depth", "semantic", "data"]
+    for directory in required_dirs:
+        dir_path = os.path.join(dataset_path, directory)
+        if not os.path.exists(dir_path):
+            print(f"❌ Missing directory: {directory}")
+            return False
+        else:
+            print(f"✅ Found directory: {directory}")
+
+    # Count files in each directory
+    rgb_files = [f for f in os.listdir(os.path.join(dataset_path, "rgb")) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    depth_files = [f for f in os.listdir(os.path.join(dataset_path, "depth")) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    semantic_files = [f for f in os.listdir(os.path.join(dataset_path, "semantic")) if f.endswith(('.png', '.jpg', '.jpeg'))]
+
+    print(f"📊 RGB files: {len(rgb_files)}")
+    print(f"📊 Depth files: {len(depth_files)}")
+    print(f"📊 Semantic files: {len(semantic_files)}")
+
+    # Check if counts are consistent
+    if len(rgb_files) == len(depth_files) == len(semantic_files) > 0:
+        print(f"✅ File count consistency: {len(rgb_files)} samples")
+    else:
+        print("❌ Inconsistent file counts across directories")
+        return False
+
+    # Validate a sample image from each category
+    sample_name = rgb_files[0].split('.')[0]  # Get base name without extension
+
+    # Check RGB image
+    rgb_sample_path = os.path.join(dataset_path, "rgb", rgb_files[0])
+    rgb_img = cv2.imread(rgb_sample_path)
+    if rgb_img is None:
+        print("❌ Invalid RGB image file detected")
+        return False
+    print(f"✅ RGB image shape: {rgb_img.shape}")
+
+    # Check depth image
+    depth_sample_path = os.path.join(dataset_path, "depth", f"{sample_name}.png")
+    if os.path.exists(depth_sample_path):
+        depth_img = cv2.imread(depth_sample_path, cv2.IMREAD_UNCHANGED)
+        if depth_img is None:
+            print("❌ Invalid depth image file detected")
+            return False
+        print(f"✅ Depth image shape: {depth_img.shape}, dtype: {depth_img.dtype}")
+    else:
+        print("❌ Depth file not found")
+        return False
+
+    # Check semantic image
+    semantic_sample_path = os.path.join(dataset_path, "semantic", f"{sample_name}.png")
+    if os.path.exists(semantic_sample_path):
+        semantic_img = cv2.imread(semantic_sample_path, cv2.IMREAD_UNCHANGED)
+        if semantic_img is None:
+            print("❌ Invalid semantic image file detected")
+            return False
+        print(f"✅ Semantic image shape: {semantic_img.shape}, unique labels: {len(np.unique(semantic_img))}")
+    else:
+        print("❌ Semantic file not found")
+        return False
+
+    # Validate metadata
+    metadata_path = os.path.join(dataset_path, "data", "metadata.json")
+    if os.path.exists(metadata_path):
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        print(f"✅ Metadata found with {len(metadata)} entries")
+    else:
+        print("❌ Metadata file not found")
+        return False
+
+    print("✅ Dataset validation passed!")
+    return True
+
+# Run validation
+dataset_path = "output/synthetic_dataset"
+if validate_dataset(dataset_path):
+    print("\n🎉 Dataset generation and validation successful!")
+else:
+    print("\n❌ Dataset validation failed!")
+```
+
+#### 5.2 Analyze Dataset Quality
+1. Examine a few sample images from each category
+2. Check that depth values are reasonable
+3. Verify semantic segmentation correctly labels different objects
+4. Assess overall image quality and realism
+
+#### 5.3 Performance Analysis
+1. Record the FPS achieved during generation
+2. Note the time taken to generate the dataset
+3. Assess if performance targets were met (30 FPS for basic scenes)
+
+## Expected Outcomes
+
+Upon successful completion of this lab, students should have:
+
+1. **A complete scene** with properly organized hierarchy and appropriate lighting
+2. **A generated dataset** containing at least 100 samples of:
+   - RGB images (1920x1080 or appropriate resolution)
+   - Depth maps
+   - Semantic segmentation masks
+   - Metadata files
+3. **Validation results** confirming the dataset structure and quality
+4. **Performance metrics** showing FPS and generation time
+
+## Troubleshooting Common Issues
+
+### Scene Creation Issues
+- **Objects not appearing**: Check that objects are within the camera view and properly positioned
+- **Physics errors**: Ensure all objects have appropriate collision properties
+- **Lighting too dark/bright**: Adjust light intensities and camera exposure settings
+
+### Replicator Issues
+- **No files generated**: Check that annotators are properly attached to render product
+- **Empty or corrupted files**: Verify camera position and scene visibility
+- **Slow generation**: Reduce scene complexity or number of frames
+
+### Dataset Validation Issues
+- **Missing directories**: Check Replicator writer configuration
+- **Inconsistent file counts**: Verify that all annotators are working correctly
+- **Invalid image files**: Check camera resolution settings and file permissions
+
+## Advanced Challenges (Optional)
+
+For students who complete the basic lab early:
+
+### Challenge 1: Advanced Domain Randomization
+- Add texture randomization to objects
+- Implement weather effects (fog, rain simulation)
+- Randomize camera properties (focus, exposure)
+
+### Challenge 2: Additional Annotations
+- Add bounding box annotations
+- Generate instance segmentation masks
+- Create 3D bounding box data
+
+### Challenge 3: Performance Optimization
+- Implement level-of-detail (LOD) for complex objects
+- Optimize the scene for higher frame rates
+- Test generation with multiple cameras simultaneously
+
+## Lab Report Requirements
+
+Students should submit a lab report including:
+
+1. **Scene screenshots**: Before and after dataset generation
+2. **Dataset samples**: Sample RGB, depth, and semantic images
+3. **Performance metrics**: FPS achieved, time taken, resource usage
+4. **Validation results**: Output from the validation script
+5. **Reflection**: Challenges faced and lessons learned
+
+## Assessment Criteria
+
+- **Scene Creation (25%)**: Proper hierarchy, lighting, and object placement
+- **Dataset Generation (35%)**: Successful generation of RGB, depth, and semantic data
+- **Validation (20%)**: Proper validation and analysis of dataset quality
+- **Documentation (20%)**: Complete lab report with analysis
+
+## Next Steps
+
+After completing this lab, students should:
+1. Review and refine their scene based on performance
+2. Experiment with different domain randomization techniques
+3. Prepare for the next lab on Isaac ROS VSLAM pipeline
+4. Consider how synthetic datasets can be used for training perception models
+
+## References
+
+- [Isaac Sim Replicator Documentation](https://docs.omniverse.nvidia.com/isaacsim/latest/features/replicator.html)
+- [Synthetic Data Generation Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/replicator.html)
+- [USD Scene Composition](https://graphics.pixar.com/usd/release/index.html)
+- [Dataset Validation Techniques](https://nvidia-isaac-ros.github.io/released/synthetic_data/index.html)

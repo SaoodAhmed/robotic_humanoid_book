@@ -1,0 +1,565 @@
+# Depth Map Generation Process
+
+## Overview
+
+Depth map generation is a critical component of synthetic dataset creation, providing 3D spatial information for each pixel in the scene. Depth maps are essential for various computer vision tasks including 3D reconstruction, object detection, and scene understanding. In Isaac Sim, depth maps can be generated with high accuracy using the Replicator framework, providing valuable ground truth data for training depth estimation models.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Configure depth map generation in Isaac Sim Replicator
+- Understand different depth map formats and representations
+- Set up accurate depth sensing in virtual environments
+- Validate depth map quality and accuracy
+- Optimize depth generation for performance targets
+
+## Depth Map Fundamentals
+
+### Depth Representation
+
+Depth maps encode distance information for each pixel in the scene:
+
+#### Types of Depth Maps
+1. **Z-Depth**: Distance along the camera's Z-axis (orthogonal depth)
+2. **Distance to Image Plane**: Euclidean distance from camera to surface point
+3. **World Coordinate Depth**: Actual 3D coordinates in world space
+
+#### Depth Map Properties
+- **Resolution**: Matches the RGB image resolution
+- **Bit Depth**: Typically 16-bit or 32-bit floating point
+- **Distance Range**: Minimum to maximum measurable distance
+- **Units**: Usually meters or millimeters
+
+### Depth Accuracy Factors
+
+The accuracy of generated depth maps depends on:
+- Camera properties (focal length, aperture)
+- Scene geometry and complexity
+- Rendering resolution
+- Anti-aliasing settings
+
+## Depth Map Generation in Isaac Sim Replicator
+
+### Available Depth Annotators
+
+Isaac Sim provides several depth-related annotators:
+
+#### Distance to Image Plane
+```python
+import omni.replicator.core as rep
+
+# Create render product
+camera = rep.create.camera()
+render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+# Create distance to image plane annotator
+depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+depth_annotator.attach(render_product)
+```
+
+#### Z-Depth
+```python
+# Create Z-depth annotator
+z_depth_annotator = rep.AnnotatorRegistry.get_annotator("z_depth")
+z_depth_annotator.attach(render_product)
+```
+
+#### World Coordinate Depth
+```python
+# Create world coordinate depth annotator
+world_depth_annotator = rep.AnnotatorRegistry.get_annotator("world_surface_point")
+world_depth_annotator.attach(render_product)
+```
+
+### Configuration Parameters
+
+#### Depth Range Settings
+```python
+# Configure depth range for optimal accuracy
+def configure_depth_range():
+    # Get the depth annotator
+    depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+
+    # Set near and far clipping planes (in meters)
+    camera_prim = rep.create.camera()
+    camera_prim.GetAttribute("clippingRange").Set((0.1, 100.0))
+```
+
+#### Bit Depth Configuration
+```python
+# Configure output bit depth
+def setup_depth_output():
+    # Depth maps are typically saved as 16-bit PNG or 32-bit EXR
+    # The annotator handles the conversion automatically
+    pass
+```
+
+## Camera Configuration for Depth
+
+### Stereo Camera Setup
+
+For generating depth through stereo vision:
+```python
+# Create stereo camera pair
+def create_stereo_camera(baseline=0.2):  # 20cm baseline
+    # Left camera
+    left_camera = rep.create.camera(
+        prim_path="/World/Sensors/StereoLeft",
+        position=[-baseline/2, 0, 0]
+    )
+
+    # Right camera
+    right_camera = rep.create.camera(
+        prim_path="/World/Sensors/StereoRight",
+        position=[baseline/2, 0, 0]
+    )
+
+    return left_camera, right_camera
+```
+
+### Depth Sensor Properties
+
+Configure camera properties for optimal depth sensing:
+```python
+from pxr import UsdGeom
+
+def configure_depth_camera(camera_path):
+    stage = omni.usd.get_context().get_stage()
+    camera = UsdGeom.Camera(stage.GetPrimAtPath(camera_path))
+
+    # Set appropriate clipping ranges for depth
+    camera.CreateClippingRangeAttr().Set((0.1, 100.0))  # 0.1m to 100m
+
+    # Set focal length appropriate for depth accuracy
+    camera.CreateFocalLengthAttr().Set(24.0)  # 24mm focal length
+
+    # Set aperture for depth of field effects
+    camera.CreateHorizontalApertureAttr().Set(36.0)
+    camera.CreateVerticalApertureAttr().Set(20.25)
+```
+
+## Depth Generation Pipeline
+
+### Basic Depth Generation Setup
+
+```python
+import omni.replicator.core as rep
+
+def setup_depth_generation():
+    """Set up complete depth map generation pipeline"""
+
+    # Create camera and render product
+    camera = rep.create.camera()
+    render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+    # Attach multiple annotators
+    rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+    rgb_annotator.attach(render_product)
+
+    depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+    depth_annotator.attach(render_product)
+
+    # Configure writer to output both RGB and depth
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/depth_dataset",
+        rgb=True,
+        depth=True,
+        bounding_box_2d_tight=True
+    )
+
+    return writer
+```
+
+### Multi-Modal Annotation
+
+Generate depth alongside other annotations:
+```python
+def setup_multi_modal_generation():
+    """Set up generation with RGB, depth, and semantic annotations"""
+
+    camera = rep.create.camera()
+    render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+    # Attach all required annotators
+    annotators = {
+        'rgb': rep.AnnotatorRegistry.get_annotator("rgb"),
+        'depth': rep.AnnotatorRegistry.get_annotator("distance_to_image_plane"),
+        'semantic': rep.AnnotatorRegistry.get_annotator("semantic_segmentation"),
+        'instance': rep.AnnotatorRegistry.get_annotator("instance_segmentation")
+    }
+
+    for name, annotator in annotators.items():
+        annotator.attach(render_product)
+
+    # Configure writer
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/multi_modal_dataset",
+        rgb=True,
+        depth=True,
+        semantic_segmentation=True,
+        instance_segmentation=True
+    )
+
+    return writer
+```
+
+## Depth Quality and Accuracy
+
+### Depth Accuracy Validation
+
+Validate depth map accuracy against ground truth:
+```python
+import numpy as np
+import cv2
+
+def validate_depth_accuracy(depth_path, expected_distance, tolerance=0.01):
+    """Validate depth accuracy at a known point"""
+
+    # Load depth map
+    depth_map = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+
+    if depth_map is None:
+        return False, "Invalid depth file"
+
+    # For validation, we'll check the center pixel
+    h, w = depth_map.shape
+    center_depth = depth_map[h//2, w//2]
+
+    # Check if within tolerance
+    if abs(center_depth - expected_distance) <= tolerance:
+        return True, f"Depth accurate: {center_depth:.3f}m vs {expected_distance:.3f}m"
+    else:
+        return False, f"Depth inaccurate: {center_depth:.3f}m vs {expected_distance:.3f}m (diff: {abs(center_depth - expected_distance):.3f}m)"
+
+def analyze_depth_distribution(depth_path):
+    """Analyze depth map distribution and statistics"""
+
+    depth_map = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+    if depth_map is None:
+        return None
+
+    # Calculate statistics
+    stats = {
+        'min': np.min(depth_map),
+        'max': np.max(depth_map),
+        'mean': np.mean(depth_map),
+        'std': np.std(depth_map),
+        'valid_pixels': np.count_nonzero(depth_map > 0),
+        'total_pixels': depth_map.size
+    }
+
+    # Calculate percentage of valid depth values
+    stats['valid_percentage'] = (stats['valid_pixels'] / stats['total_pixels']) * 100
+
+    return stats
+```
+
+### Depth Map Visualization
+
+Visualize depth maps for quality assessment:
+```python
+import matplotlib.pyplot as plt
+
+def visualize_depth_map(depth_path, rgb_path=None):
+    """Visualize depth map with optional RGB overlay"""
+
+    # Load depth map
+    depth_map = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+
+    # Create visualization
+    plt.figure(figsize=(12, 5))
+
+    # Plot depth map
+    plt.subplot(1, 2, 1)
+    plt.imshow(depth_map, cmap='viridis')
+    plt.colorbar(label='Depth (m)')
+    plt.title('Depth Map')
+    plt.axis('off')
+
+    # If RGB image provided, show side by side
+    if rgb_path:
+        rgb_img = cv2.imread(rgb_path)
+        rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(rgb_img)
+        plt.title('RGB Image')
+        plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+```
+
+## Performance Optimization for Depth Generation
+
+### Depth-Specific Optimizations
+
+Optimize for depth generation performance:
+```python
+def optimize_depth_generation():
+    """Optimize settings for efficient depth generation"""
+
+    # Reduce anti-aliasing for depth if accuracy allows
+    # (depth calculation can be less affected by aliasing than color)
+
+    # Use appropriate clipping ranges
+    # Avoid extremely wide ranges that reduce precision
+
+    # Consider using lower resolution for depth if RGB is higher resolution
+    # (depth maps can sometimes be generated at lower resolution and upsampled)
+```
+
+### Multi-Sensor Depth Generation
+
+Support up to 50 concurrent sensors per simulation:
+```python
+def setup_multi_sensor_depth(num_sensors=10):
+    """Set up multiple depth sensors for complex scenes"""
+
+    sensors = []
+
+    for i in range(num_sensors):
+        # Create camera at different positions/orientations
+        camera = rep.create.camera(
+            prim_path=f"/World/Sensors/DepthCam{i}",
+            position=[np.random.uniform(-5, 5), np.random.uniform(-5, 5), np.random.uniform(1, 3)],
+            orientation=[0.707, 0, 0, 0.707]  # Looking down
+        )
+
+        # Create render product
+        render_product = rep.create.render_product(camera, resolution=(640, 480))
+
+        # Attach depth annotator
+        depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+        depth_annotator.attach(render_product)
+
+        sensors.append({
+            'camera': camera,
+            'render_product': render_product,
+            'annotator': depth_annotator
+        })
+
+    return sensors
+```
+
+## Depth Domain Randomization
+
+### Lighting Effects on Depth
+
+Randomize lighting while maintaining depth accuracy:
+```python
+@rep.randomizer
+def randomize_depth_lighting():
+    lights = rep.get.light()
+
+    with rep.trigger.on_frame():
+        # Randomize light positions to create different shadow patterns
+        # (this doesn't affect depth accuracy but creates variation in appearance)
+        rep.randomizer.light.position(
+            position=rep.distribution.uniform((-2, -2, 5), (2, 2, 8)),
+            light=lights
+        )
+
+randomize_depth_lighting()
+```
+
+### Camera Parameter Randomization
+
+Randomize camera parameters that don't affect depth accuracy:
+```python
+@rep.randomizer
+def randomize_depth_camera():
+    cameras = rep.get.camera()
+
+    with rep.trigger.on_frame():
+        # Randomize focal length slightly (affects perspective but not depth accuracy)
+        rep.randomizer.camera.focal_length(
+            focal_length=rep.distribution.uniform(20, 30),
+            camera=cameras
+        )
+
+randomize_depth_camera()
+```
+
+## Practical Exercise: Depth Map Generation
+
+### Objective
+Create a complete depth map generation pipeline with validation and quality assessment.
+
+### Steps
+
+1. **Scene Setup**:
+   - Create a scene with objects at various distances
+   - Position objects to span the depth range
+   - Configure appropriate lighting
+
+2. **Camera Configuration**:
+   - Set up camera with proper clipping ranges
+   - Configure resolution and other parameters
+
+3. **Replicator Setup**:
+   - Attach depth annotator
+   - Configure output writer
+   - Set up validation pipeline
+
+4. **Generation and Validation**:
+   - Generate depth maps
+   - Validate accuracy
+   - Analyze results
+
+### Sample Implementation
+
+```python
+import omni.replicator.core as rep
+import numpy as np
+import cv2
+import os
+
+def create_depth_generation_pipeline():
+    """Create a complete depth generation pipeline"""
+
+    # Create scene with objects at different depths
+    for i in range(5):
+        # Create objects at increasing distances
+        distance = 2 + i * 2  # 2m, 4m, 6m, 8m, 10m
+        rep.create.cube(
+            prim_path=f"/World/Environment/Object{i}",
+            position=[0, 0, 1],
+            scale=[0.5, 0.5, 0.5]
+        ).scale(position=[i * 0.5, 0, 0])  # Slightly offset in X
+
+    # Create camera
+    camera = rep.create.camera(
+        prim_path="/World/Sensors/DepthCamera",
+        position=[0, -1, 1.5]  # 1m away from first object
+    )
+
+    # Create render product
+    render_product = rep.create.render_product(camera, resolution=(1280, 720))
+
+    # Attach annotators
+    rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+    rgb_annotator.attach(render_product)
+
+    depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+    depth_annotator.attach(render_product)
+
+    # Configure writer
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/depth_pipeline_test",
+        rgb=True,
+        depth=True
+    )
+
+    # Execute generation
+    with rep.trigger.on_frame(num_frames=10):
+        writer.write()
+
+    print("Depth generation pipeline executed successfully!")
+
+def validate_depth_dataset(dataset_path):
+    """Validate a generated depth dataset"""
+
+    depth_dir = os.path.join(dataset_path, "depth")
+    rgb_dir = os.path.join(dataset_path, "rgb")
+
+    if not os.path.exists(depth_dir):
+        print("❌ Depth directory not found")
+        return False
+
+    depth_files = [f for f in os.listdir(depth_dir) if f.endswith('.png')]
+    print(f"📊 Found {len(depth_files)} depth files")
+
+    # Validate a sample of depth maps
+    sample_size = min(5, len(depth_files))
+    for i in range(sample_size):
+        depth_file = depth_files[i]
+        depth_path = os.path.join(depth_dir, depth_file)
+
+        stats = analyze_depth_distribution(depth_path)
+        if stats:
+            print(f"📈 {depth_file}: Min={stats['min']:.2f}, Max={stats['max']:.2f}, Mean={stats['mean']:.2f}m")
+
+    return True
+
+# Execute the pipeline
+create_depth_generation_pipeline()
+
+# Validate the results
+validate_depth_dataset("output/depth_pipeline_test")
+```
+
+## Troubleshooting Common Depth Issues
+
+### Depth Accuracy Issues
+- **Incorrect depth values**: Check camera clipping range settings
+- **NaN or infinite values**: Verify scene geometry and camera position
+- **Inconsistent depth**: Check for overlapping objects or geometry issues
+
+### Performance Issues
+- **Slow generation**: Depth generation is typically fast, but complex scenes may slow it down
+- **Memory issues**: Depth maps are generally smaller than RGB images
+
+### Technical Issues
+- **No depth files**: Verify annotator attachment and writer configuration
+- **Black depth maps**: Check if objects are within clipping range
+- **Wrong format**: Ensure proper bit depth configuration
+
+## Best Practices
+
+1. **Proper clipping ranges**: Set near/far clipping to match scene requirements
+2. **Consistent units**: Use meters for consistency with other Isaac Sim components
+3. **Validation**: Always validate depth accuracy with known distances
+4. **Resolution matching**: Ensure depth resolution matches RGB for alignment
+5. **Multi-sensor coordination**: When using multiple sensors, ensure proper timing
+6. **Quality assessment**: Regularly analyze depth distribution and statistics
+
+## Performance Targets
+
+For depth map generation:
+- **Basic scenes**: Maintain 30 FPS with 1920x1080 resolution
+- **Complex scenes**: Maintain 10 FPS with 1920x1080 resolution
+- **Accuracy**: Sub-centimeter accuracy for close objects, meter-level for distant objects
+- **Multi-sensor**: Support up to 50 concurrent depth sensors per simulation
+- **Multi-user**: Support up to 10 simultaneous student sessions
+
+## Integration with Other Pipelines
+
+### RGB-D Processing
+Depth maps are often used with RGB images for RGB-D applications:
+```python
+def process_rgbd_pair(rgb_path, depth_path):
+    """Process RGB and depth images together"""
+
+    # Load RGB image
+    rgb = cv2.imread(rgb_path)
+    rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+
+    # Load depth map
+    depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+
+    # Both should have the same dimensions
+    assert rgb.shape[:2] == depth.shape[:2], "RGB and depth dimensions must match"
+
+    # Process RGB-D data (e.g., point cloud generation, 3D object detection)
+    return rgb, depth
+```
+
+## Next Steps
+
+After mastering depth map generation:
+1. Learn semantic segmentation mask generation
+2. Combine depth with other sensor data
+3. Explore 3D reconstruction techniques
+4. Implement depth-based computer vision algorithms
+5. Optimize for specific depth estimation tasks
+
+## References
+
+- [Isaac Sim Depth Annotator Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/features/replicator.html#depth-annotators)
+- [Depth Map Generation Best Practices](https://nvidia-isaac-ros.github.io/released/synthetic_data/index.html)
+- [3D Reconstruction from Depth Maps](https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html)
+- [Stereo Vision in Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/stereo.html)

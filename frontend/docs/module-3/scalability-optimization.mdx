@@ -1,0 +1,1010 @@
+# Isaac Sim Scalability: Supporting 10 Simultaneous Student Sessions
+
+## Overview
+
+Supporting multiple simultaneous users in Isaac Sim educational environments requires careful planning and optimization of system resources, network configuration, and session management. This section covers strategies for scaling Isaac Sim to support up to 10 concurrent student sessions while maintaining performance and ensuring fair resource allocation.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Configure Isaac Sim for multi-user environments
+- Plan and allocate system resources for multiple concurrent sessions
+- Implement session isolation and management
+- Optimize performance for multi-user scenarios
+- Monitor and manage resource usage across multiple sessions
+
+## Multi-User Architecture Fundamentals
+
+### Session Isolation Principles
+
+Isaac Sim sessions must be properly isolated to prevent interference between users:
+```python
+import os
+import subprocess
+import psutil
+from typing import Dict, List, Optional
+
+class SessionManager:
+    """Manage multiple Isaac Sim sessions with proper isolation"""
+
+    def __init__(self, max_sessions: int = 10):
+        self.max_sessions = max_sessions
+        self.active_sessions: Dict[str, dict] = {}
+        self.resource_limits = {
+            'gpu_memory_per_session': 2048,  # MB per session
+            'cpu_cores_per_session': 4,      # CPU cores per session
+            'ram_per_session': 4096,         # MB per session
+            'network_bandwidth_per_session': 100  # Mbps per session
+        }
+
+    def create_isolated_session(self, user_id: str, session_id: str) -> Optional[str]:
+        """Create an isolated Isaac Sim session for a user"""
+
+        if len(self.active_sessions) >= self.max_sessions:
+            return None  # Maximum sessions reached
+
+        # Check if system has sufficient resources
+        if not self._has_sufficient_resources():
+            return None
+
+        # Create session directory
+        session_dir = f"/tmp/isaac_sim_session_{session_id}"
+        os.makedirs(session_dir, exist_ok=True)
+
+        # Configure resource limits
+        resource_config = self._allocate_resources(user_id, session_id)
+
+        session_info = {
+            'user_id': user_id,
+            'session_id': session_id,
+            'session_dir': session_dir,
+            'resource_config': resource_config,
+            'process_handle': None,
+            'status': 'starting'
+        }
+
+        # Launch Isaac Sim with session-specific configuration
+        process_handle = self._launch_isaac_sim(session_info)
+        if process_handle:
+            session_info['process_handle'] = process_handle
+            session_info['status'] = 'active'
+            self.active_sessions[session_id] = session_info
+            return session_dir
+
+        return None
+
+    def _has_sufficient_resources(self) -> bool:
+        """Check if system has sufficient resources for another session"""
+
+        available_memory = psutil.virtual_memory().available
+        available_cpu = psutil.cpu_count() - sum(
+            session['resource_config']['cpu_cores'] for session in self.active_sessions.values()
+        )
+        available_gpu_memory = self._get_available_gpu_memory()
+
+        # Check if we can allocate resources for one more session
+        required_memory = self.resource_limits['ram_per_session']
+        required_cpu = self.resource_limits['cpu_cores_per_session']
+        required_gpu_memory = self.resource_limits['gpu_memory_per_session']
+
+        return (available_memory >= required_memory * 1024 * 1024 and  # Convert MB to bytes
+                available_cpu >= required_cpu and
+                available_gpu_memory >= required_gpu_memory)
+
+    def _allocate_resources(self, user_id: str, session_id: str) -> dict:
+        """Allocate resources for a new session"""
+
+        # Define resource allocation for this session
+        resource_config = {
+            'gpu_memory_limit': self.resource_limits['gpu_memory_per_session'],
+            'cpu_cores': self.resource_limits['cpu_cores_per_session'],
+            'ram_limit': self.resource_limits['ram_per_session'],
+            'network_bandwidth': self.resource_limits['network_bandwidth_per_session'],
+            'gpu_compute_shares': 100  # Relative share of GPU compute
+        }
+
+        return resource_config
+
+    def _launch_isaac_sim(self, session_info: dict) -> Optional[subprocess.Popen]:
+        """Launch Isaac Sim with proper resource isolation"""
+
+        # Construct command with session-specific parameters
+        cmd = [
+            "isaac-sim",
+            f"--config={session_info['session_dir']}/config.yaml",
+            f"--user={session_info['user_id']}",
+            "--no-window"  # For headless operation in multi-user environment
+        ]
+
+        # Set environment variables for resource isolation
+        env = os.environ.copy()
+        env['CUDA_VISIBLE_DEVICES'] = self._assign_gpu_device(session_info['session_id'])
+        env['MESA_GL_VERSION_OVERRIDE'] = '4.6'  # Ensure consistent OpenGL version
+
+        try:
+            # Launch with resource limits
+            process = subprocess.Popen(
+                cmd,
+                env=env,
+                cwd=session_info['session_dir'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            return process
+        except Exception as e:
+            print(f"Failed to launch Isaac Sim for session {session_info['session_id']}: {e}")
+            return None
+
+    def _assign_gpu_device(self, session_id: str) -> str:
+        """Assign GPU device to session (for multi-GPU systems)"""
+        # For single GPU systems, return "0"
+        # For multi-GPU systems, implement round-robin or load-based assignment
+        return "0"
+
+    def _get_available_gpu_memory(self) -> int:
+        """Get available GPU memory"""
+        try:
+            import GPUtil
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                # Return available memory in MB
+                return int(gpus[0].memoryFree)
+        except ImportError:
+            # If GPUtil not available, return a conservative estimate
+            return 4096  # Assume 4GB available
+        return 0
+```
+
+### Resource Allocation Strategies
+
+Implement fair resource allocation for multiple users:
+```python
+class ResourceManager:
+    """Manage system resources across multiple Isaac Sim sessions"""
+
+    def __init__(self):
+        self.total_gpu_memory = self._get_total_gpu_memory()
+        self.total_ram = psutil.virtual_memory().total
+        self.total_cpu_cores = psutil.cpu_count()
+        self.allocated_resources = {
+            'gpu_memory': 0,
+            'ram': 0,
+            'cpu_cores': 0
+        }
+
+    def request_resources(self, session_id: str, requirements: dict) -> bool:
+        """Request resources for a session"""
+
+        # Check if sufficient resources are available
+        if (self.allocated_resources['gpu_memory'] + requirements.get('gpu_memory', 0) <= self.total_gpu_memory and
+            self.allocated_resources['ram'] + requirements.get('ram', 0) <= self.total_ram and
+            self.allocated_resources['cpu_cores'] + requirements.get('cpu_cores', 0) <= self.total_cpu_cores):
+
+            # Allocate resources
+            self.allocated_resources['gpu_memory'] += requirements.get('gpu_memory', 0)
+            self.allocated_resources['ram'] += requirements.get('ram', 0)
+            self.allocated_resources['cpu_cores'] += requirements.get('cpu_cores', 0)
+
+            return True
+
+        return False
+
+    def release_resources(self, session_id: str, requirements: dict):
+        """Release resources when session ends"""
+
+        self.allocated_resources['gpu_memory'] -= requirements.get('gpu_memory', 0)
+        self.allocated_resources['ram'] -= requirements.get('ram', 0)
+        self.allocated_resources['cpu_cores'] -= requirements.get('cpu_cores', 0)
+
+        # Ensure no negative values
+        for key in self.allocated_resources:
+            self.allocated_resources[key] = max(0, self.allocated_resources[key])
+
+    def _get_total_gpu_memory(self) -> int:
+        """Get total GPU memory available"""
+        try:
+            import GPUtil
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                return int(gpus[0].memoryTotal)  # Return in MB
+        except ImportError:
+            pass
+        return 8192  # Default to 8GB if unable to determine
+```
+
+## Hardware Requirements for Multi-User Scenarios
+
+### Minimum System Requirements
+
+For supporting 10 simultaneous student sessions:
+```python
+def get_multi_user_hardware_requirements(num_sessions: int = 10) -> dict:
+    """Calculate hardware requirements for multiple sessions"""
+
+    requirements = {
+        'gpu': {
+            'minimum': {
+                'model': 'RTX 3080',
+                'memory': 12 * 1024,  # 12GB in MB
+                'compute_capability': 8.6
+            },
+            'recommended': {
+                'model': 'RTX 4090 or RTX 6000 Ada',
+                'memory': 24 * 1024,  # 24GB in MB
+                'compute_capability': 8.9
+            },
+            'per_session_memory': 2 * 1024  # 2GB per session
+        },
+        'cpu': {
+            'minimum_cores': 16,
+            'recommended_cores': 32,
+            'threads_per_session': 2,
+            'architecture': 'x86_64'
+        },
+        'memory': {
+            'minimum': 32 * 1024,      # 32GB in MB
+            'recommended': 64 * 1024,  # 64GB in MB
+            'per_session': 4 * 1024    # 4GB per session
+        },
+        'storage': {
+            'minimum': 512 * 1024,      # 512GB in MB
+            'recommended': 1024 * 1024, # 1TB in MB
+            'ssd_required': True,
+            'iops_per_session': 1000
+        },
+        'network': {
+            'bandwidth_per_session': 100,  # Mbps per session
+            'total_bandwidth': 1000,       # Mbps total
+            'latency_requirement': 10      # Maximum latency in ms
+        }
+    }
+
+    return requirements
+
+def validate_hardware_suitability(requirements: dict) -> dict:
+    """Validate if current hardware meets requirements"""
+
+    validation = {
+        'gpu_suitable': False,
+        'cpu_suitable': False,
+        'memory_suitable': False,
+        'storage_suitable': False,
+        'network_suitable': False,
+        'overall_suitable': False
+    }
+
+    # Check GPU
+    try:
+        import GPUtil
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            current_gpu = gpus[0]
+            validation['gpu_suitable'] = (
+                current_gpu.memoryTotal >= requirements['gpu']['recommended']['memory']
+            )
+    except ImportError:
+        validation['gpu_suitable'] = False
+
+    # Check CPU
+    current_cpu_cores = psutil.cpu_count()
+    validation['cpu_suitable'] = current_cpu_cores >= requirements['cpu']['recommended_cores']
+
+    # Check memory
+    current_memory = psutil.virtual_memory().total
+    validation['memory_suitable'] = current_memory >= requirements['memory']['recommended'] * 1024 * 1024
+
+    # Overall suitability
+    validation['overall_suitable'] = all([
+        validation['gpu_suitable'],
+        validation['cpu_suitable'],
+        validation['memory_suitable']
+    ])
+
+    return validation
+```
+
+### Resource Planning and Allocation
+
+Plan resource allocation for optimal multi-user performance:
+```python
+class ResourcePlanner:
+    """Plan and allocate resources for multi-user Isaac Sim environment"""
+
+    def __init__(self, num_sessions: int = 10):
+        self.num_sessions = num_sessions
+        self.hardware_requirements = get_multi_user_hardware_requirements(num_sessions)
+
+    def calculate_resource_allocation(self) -> dict:
+        """Calculate resource allocation per session"""
+
+        allocation = {
+            'gpu_memory_per_session': (
+                self.hardware_requirements['gpu']['recommended']['memory'] // self.num_sessions
+            ),
+            'cpu_cores_per_session': (
+                self.hardware_requirements['cpu']['recommended_cores'] // self.num_sessions
+            ),
+            'ram_per_session': (
+                self.hardware_requirements['memory']['recommended'] // self.num_sessions
+            ),
+            'storage_per_session': (
+                self.hardware_requirements['storage']['recommended'] // self.num_sessions
+            )
+        }
+
+        return allocation
+
+    def get_resource_overcommitment_factor(self) -> float:
+        """Calculate safe overcommitment factor for resources"""
+
+        # GPU memory cannot be overcommitted, but CPU and RAM can be
+        # based on usage patterns
+        overcommitment_factors = {
+            'gpu_memory': 1.0,  # No overcommitment for GPU memory
+            'cpu': 1.2,         # 20% overcommitment based on usage patterns
+            'ram': 1.5,         # 50% overcommitment with proper swapping
+            'storage': 2.0      # 100% overcommitment with thin provisioning
+        }
+
+        return overcommitment_factors
+
+    def generate_resource_plan(self) -> str:
+        """Generate a resource allocation plan"""
+
+        allocation = self.calculate_resource_allocation()
+        overcommit_factors = self.get_resource_overcommitment_factor()
+
+        plan = f"""
+# Isaac Sim Multi-User Resource Allocation Plan
+
+## Session Configuration
+- Total Sessions: {self.num_sessions}
+- Target Performance: 10 sessions with acceptable performance
+
+## Resource Allocation Per Session
+- GPU Memory: {allocation['gpu_memory_per_session']} MB
+- CPU Cores: {allocation['cpu_cores_per_session']}
+- RAM: {allocation['ram_per_session']} MB
+- Storage: {allocation['storage_per_session']} MB
+
+## Overcommitment Factors
+- CPU: {overcommit_factors['cpu']}:1 (based on usage patterns)
+- RAM: {overcommit_factors['ram']}:1 (with proper swapping)
+- Storage: {overcommit_factors['storage']}:1 (with thin provisioning)
+- GPU Memory: {overcommit_factors['gpu_memory']}:1 (no overcommitment)
+
+## Recommendations
+- Use resource limits and cgroups for enforcement
+- Monitor resource usage continuously
+- Plan for peak usage scenarios
+- Implement resource reservation for critical operations
+        """
+
+        return plan
+```
+
+## Network Configuration for Multi-User Access
+
+### Network Architecture
+
+Configure network for multi-user Isaac Sim access:
+```python
+def configure_multi_user_network(num_sessions: int = 10) -> dict:
+    """Configure network settings for multi-user Isaac Sim environment"""
+
+    network_config = {
+        'port_range': {
+            'start': 8000,
+            'end': 8000 + num_sessions * 10  # 10 ports per session for different services
+        },
+        'bandwidth_allocation': {
+            'per_session': '100Mbps',
+            'total_required': f'{num_sessions * 100}Mbps'
+        },
+        'qos_settings': {
+            'enable_qos': True,
+            'traffic_priority': {
+                'simulation_data': 'high',
+                'control_commands': 'high',
+                'file_transfers': 'medium',
+                'general_browsing': 'low'
+            },
+            'bandwidth_reservation': {
+                'minimum_per_session': '50Mbps',
+                'guaranteed_per_session': '100Mbps'
+            }
+        },
+        'security': {
+            'enable_firewall': True,
+            'port_security': True,
+            'session_isolation': True,
+            'encryption_required': True
+        },
+        'load_balancing': {
+            'enable_load_balancing': True,
+            'algorithm': 'round_robin',
+            'health_checks': True
+        }
+    }
+
+    return network_config
+
+def setup_session_network_isolation(session_id: str) -> str:
+    """Set up network isolation for a specific session"""
+
+    # Create network namespace for session isolation
+    namespace_name = f"isaac_sim_{session_id}"
+
+    commands = [
+        f"ip netns add {namespace_name}",
+        f"ip link add veth{session_id}_a type veth peer name veth{session_id}_b",
+        f"ip link set veth{session_id}_a netns {namespace_name}",
+        f"ip netns exec {namespace_name} ip addr add 10.0.{session_id}.2/24 dev veth{session_id}_a",
+        f"ip netns exec {namespace_name} ip link set veth{session_id}_a up",
+        f"ip netns exec {namespace_name} ip route add default via 10.0.{session_id}.1",
+        f"ip addr add 10.0.{session_id}.1/24 dev veth{session_id}_b",
+        f"ip link set veth{session_id}_b up"
+    ]
+
+    return f"""
+# Network isolation commands for session {session_id}
+# Execute these commands to set up network namespace isolation:
+
+{'\n'.join(commands)}
+
+# Configure firewall rules for session isolation:
+iptables -A FORWARD -i veth{session_id}_b -j ACCEPT
+iptables -A FORWARD -o veth{session_id}_b -j ACCEPT
+"""
+```
+
+## Performance Monitoring and Management
+
+### Multi-Session Performance Monitoring
+
+Monitor performance across multiple sessions:
+```python
+import threading
+import time
+from dataclasses import dataclass
+from typing import Dict, List
+
+@dataclass
+class SessionMetrics:
+    """Metrics for a single Isaac Sim session"""
+    session_id: str
+    user_id: str
+    timestamp: float
+    gpu_usage: float  # 0-1
+    cpu_usage: float  # 0-1
+    memory_usage: float  # 0-1
+    fps: float
+    network_usage: float  # Mbps
+    disk_io: float  # MB/s
+
+class MultiSessionMonitor:
+    """Monitor performance across multiple Isaac Sim sessions"""
+
+    def __init__(self, session_manager: SessionManager):
+        self.session_manager = session_manager
+        self.metrics_history: Dict[str, List[SessionMetrics]] = {}
+        self.monitoring_active = False
+        self.monitoring_thread = None
+
+    def start_monitoring(self):
+        """Start continuous monitoring of all sessions"""
+        self.monitoring_active = True
+        self.monitoring_thread = threading.Thread(target=self._monitoring_loop)
+        self.monitoring_thread.start()
+
+    def stop_monitoring(self):
+        """Stop monitoring"""
+        self.monitoring_active = False
+        if self.monitoring_thread:
+            self.monitoring_thread.join()
+
+    def _monitoring_loop(self):
+        """Main monitoring loop"""
+        while self.monitoring_active:
+            self._collect_metrics()
+            time.sleep(1)  # Collect metrics every second
+
+    def _collect_metrics(self):
+        """Collect metrics from all active sessions"""
+        for session_id, session_info in self.session_manager.active_sessions.items():
+            metrics = self._get_session_metrics(session_id, session_info)
+
+            if session_id not in self.metrics_history:
+                self.metrics_history[session_id] = []
+
+            self.metrics_history[session_id].append(metrics)
+
+            # Keep only last 1000 metrics per session
+            if len(self.metrics_history[session_id]) > 1000:
+                self.metrics_history[session_id] = self.metrics_history[session_id][-1000:]
+
+    def _get_session_metrics(self, session_id: str, session_info: dict) -> SessionMetrics:
+        """Get metrics for a specific session"""
+
+        # This would interface with the actual Isaac Sim process
+        # For now, we'll simulate metrics
+        import random
+
+        return SessionMetrics(
+            session_id=session_id,
+            user_id=session_info['user_id'],
+            timestamp=time.time(),
+            gpu_usage=random.uniform(0.3, 0.9),  # 30-90% GPU usage
+            cpu_usage=random.uniform(0.2, 0.7),  # 20-70% CPU usage
+            memory_usage=random.uniform(0.4, 0.8),  # 40-80% memory usage
+            fps=random.uniform(8, 12),  # 8-12 FPS (around target)
+            network_usage=random.uniform(10, 50),  # 10-50 Mbps
+            disk_io=random.uniform(5, 20)  # 5-20 MB/s
+        )
+
+    def get_system_overview(self) -> dict:
+        """Get system overview metrics"""
+
+        if not self.metrics_history:
+            return {"status": "no_data", "message": "No metrics collected yet"}
+
+        all_metrics = []
+        for session_metrics in self.metrics_history.values():
+            all_metrics.extend(session_metrics[-10:])  # Last 10 metrics per session
+
+        if not all_metrics:
+            return {"status": "no_recent_data", "message": "No recent metrics"}
+
+        # Calculate averages
+        avg_gpu = sum(m.gpu_usage for m in all_metrics) / len(all_metrics)
+        avg_cpu = sum(m.cpu_usage for m in all_metrics) / len(all_metrics)
+        avg_memory = sum(m.memory_usage for m in all_metrics) / len(all_metrics)
+        avg_fps = sum(m.fps for m in all_metrics) / len(all_metrics)
+
+        overview = {
+            "status": "active",
+            "total_sessions": len(self.session_manager.active_sessions),
+            "active_sessions": len(self.session_manager.active_sessions),
+            "average_gpu_usage": avg_gpu,
+            "average_cpu_usage": avg_cpu,
+            "average_memory_usage": avg_memory,
+            "average_fps": avg_fps,
+            "system_load": (avg_gpu + avg_cpu + avg_memory) / 3,
+            "performance_score": self._calculate_performance_score(avg_fps)
+        }
+
+        return overview
+
+    def _calculate_performance_score(self, avg_fps: float) -> float:
+        """Calculate performance score based on FPS"""
+        # Target is 10 FPS, so score is relative to that
+        if avg_fps >= 10:
+            return 1.0  # Perfect score
+        else:
+            return avg_fps / 10.0
+
+    def generate_performance_report(self) -> str:
+        """Generate a performance report for all sessions"""
+
+        overview = self.get_system_overview()
+
+        report = f"""
+# Isaac Sim Multi-User Performance Report
+
+## System Overview
+- Total Sessions: {overview.get('total_sessions', 0)}
+- Active Sessions: {overview.get('active_sessions', 0)}
+- Average GPU Usage: {overview.get('average_gpu_usage', 0):.2%}
+- Average CPU Usage: {overview.get('average_cpu_usage', 0):.2%}
+- Average Memory Usage: {overview.get('average_memory_usage', 0):.2%}
+- Average FPS: {overview.get('average_fps', 0):.2f}
+- Performance Score: {overview.get('performance_score', 0):.2%}
+
+## Per-Session Details
+"""
+
+        for session_id, metrics_list in self.metrics_history.items():
+            if metrics_list:
+                recent_metrics = metrics_list[-5:]  # Last 5 metrics
+                avg_session_fps = sum(m.fps for m in recent_metrics) / len(recent_metrics)
+
+                report += f"""
+### Session {session_id}
+- Average FPS (last 5): {avg_session_fps:.2f}
+- GPU Usage: {sum(m.gpu_usage for m in recent_metrics)/len(recent_metrics):.2%}
+- CPU Usage: {sum(m.cpu_usage for m in recent_metrics)/len(recent_metrics):.2%}
+- Memory Usage: {sum(m.memory_usage for m in recent_metrics)/len(recent_metrics):.2%}
+"""
+
+        return report
+```
+
+## Session Management and Load Balancing
+
+### Dynamic Session Management
+
+Implement dynamic session management for optimal resource utilization:
+```python
+class DynamicSessionManager(SessionManager):
+    """Enhanced session manager with dynamic resource allocation"""
+
+    def __init__(self, max_sessions: int = 10):
+        super().__init__(max_sessions)
+        self.performance_monitor = MultiSessionMonitor(self)
+        self.resource_manager = ResourceManager()
+
+    def create_session_with_adaptation(self, user_id: str, session_id: str,
+                                     performance_target: float = 10.0) -> Optional[str]:
+        """Create a session with dynamic resource adaptation"""
+
+        # Determine optimal resource allocation based on current system load
+        resource_allocation = self._determine_optimal_allocation()
+
+        # Adjust requirements based on system capacity
+        adjusted_requirements = {
+            'gpu_memory': min(
+                resource_allocation['gpu_memory_per_session'],
+                self.resource_manager.total_gpu_memory // 2  # Don't use more than 50% for one session
+            ),
+            'cpu_cores': min(
+                resource_allocation['cpu_cores_per_session'],
+                self.resource_manager.total_cpu_cores // 2
+            ),
+            'ram': min(
+                resource_allocation['ram_per_session'] * 1024 * 1024,  # Convert to bytes
+                self.resource_manager.total_ram // 2
+            )
+        }
+
+        # Request resources
+        if self.resource_manager.request_resources(session_id, adjusted_requirements):
+            # Create the session with adjusted resources
+            session_dir = super().create_isolated_session(user_id, session_id)
+            if session_dir:
+                # Update session with actual resource allocation
+                self.active_sessions[session_id]['resource_config'] = adjusted_requirements
+                return session_dir
+            else:
+                # Release resources if session creation failed
+                self.resource_manager.release_resources(session_id, adjusted_requirements)
+
+        return None
+
+    def _determine_optimal_allocation(self) -> dict:
+        """Determine optimal resource allocation based on current system state"""
+
+        current_sessions = len(self.active_sessions)
+        remaining_sessions = self.max_sessions - current_sessions
+
+        if remaining_sessions <= 0:
+            return self.resource_limits
+
+        # Adjust allocation based on number of active sessions
+        # As more sessions are added, reduce per-session allocation
+        allocation_factor = min(1.0, (self.max_sessions - remaining_sessions) / self.max_sessions * 0.8)
+
+        adjusted_allocation = {
+            'gpu_memory_per_session': int(self.resource_limits['gpu_memory_per_session'] * allocation_factor),
+            'cpu_cores_per_session': max(1, int(self.resource_limits['cpu_cores_per_session'] * allocation_factor)),
+            'ram_per_session': int(self.resource_limits['ram_per_session'] * allocation_factor),
+            'network_bandwidth_per_session': int(self.resource_limits['network_bandwidth_per_session'] * allocation_factor)
+        }
+
+        return adjusted_allocation
+
+    def adapt_session_resources(self, session_id: str, performance_feedback: float):
+        """Adapt resources for a session based on performance feedback"""
+
+        if session_id not in self.active_sessions:
+            return False
+
+        current_config = self.active_sessions[session_id]['resource_config']
+
+        # If performance is below target, try to allocate more resources
+        if performance_feedback < 0.8:  # Performance is poor
+            # Request additional resources
+            additional_resources = {
+                'gpu_memory': int(current_config['gpu_memory_limit'] * 0.2),  # 20% more
+                'ram': int(current_config['ram_limit'] * 1024 * 1024 * 0.2),   # 20% more
+                'cpu_cores': min(2, current_config['cpu_cores'] // 2)         # Up to 2 more cores
+            }
+
+            if self.resource_manager.request_resources(f"{session_id}_extra", additional_resources):
+                # Apply additional resources to the session
+                self.active_sessions[session_id]['resource_config'].update({
+                    'gpu_memory_limit': current_config['gpu_memory_limit'] + additional_resources['gpu_memory'],
+                    'ram_limit': current_config['ram_limit'] + additional_resources['ram'] // (1024 * 1024),
+                    'cpu_cores': current_config['cpu_cores'] + additional_resources['cpu_cores']
+                })
+                return True
+
+        elif performance_feedback > 1.2:  # Performance is better than needed
+            # Consider reducing resources to make them available for other sessions
+            reduction = {
+                'gpu_memory': int(current_config['gpu_memory_limit'] * 0.1),  # 10% less
+                'ram': int(current_config['ram_limit'] * 1024 * 1024 * 0.1),   # 10% less
+                'cpu_cores': max(1, current_config['cpu_cores'] // 4)         # Reduce by up to 25%
+            }
+
+            # Release resources
+            self.resource_manager.release_resources(f"{session_id}_extra", reduction)
+
+            # Update session configuration
+            self.active_sessions[session_id]['resource_config'].update({
+                'gpu_memory_limit': max(1024, current_config['gpu_memory_limit'] - reduction['gpu_memory']),  # Minimum 1GB
+                'ram_limit': max(1024, current_config['ram_limit'] - reduction['ram'] // (1024 * 1024)),  # Minimum 1GB
+                'cpu_cores': max(1, current_config['cpu_cores'] - reduction['cpu_cores'])
+            })
+            return True
+
+        return False
+```
+
+## Practical Exercise: Multi-User Setup
+
+### Objective
+Configure Isaac Sim for supporting 10 simultaneous student sessions with proper resource allocation and monitoring.
+
+### Steps
+
+1. **System Assessment**: Evaluate current hardware capabilities
+2. **Resource Planning**: Plan resource allocation for 10 sessions
+3. **Session Configuration**: Set up session management system
+4. **Monitoring Setup**: Implement performance monitoring
+5. **Load Testing**: Test with simulated concurrent sessions
+
+### Sample Implementation
+
+```python
+def setup_multi_user_environment(num_sessions: int = 10):
+    """Complete setup for multi-user Isaac Sim environment"""
+
+    print("🚀 Setting up Isaac Sim for multi-user environment...")
+
+    # Step 1: Hardware assessment
+    print("🔍 Assessing hardware capabilities...")
+    requirements = get_multi_user_hardware_requirements(num_sessions)
+    validation = validate_hardware_suitability(requirements)
+
+    if not validation['overall_suitable']:
+        print("⚠️  Hardware may not meet recommended requirements:")
+        for component, suitable in validation.items():
+            if component != 'overall_suitable':
+                print(f"   - {component}: {'✅' if suitable else '❌'}")
+    else:
+        print("✅ Hardware meets requirements for multi-user setup")
+
+    # Step 2: Resource planning
+    print("📋 Planning resource allocation...")
+    planner = ResourcePlanner(num_sessions)
+    allocation_plan = planner.generate_resource_plan()
+    print("   Resource allocation plan generated")
+
+    # Step 3: Session management setup
+    print("⚙️  Setting up session management...")
+    session_manager = DynamicSessionManager(max_sessions=num_sessions)
+
+    # Step 4: Monitoring setup
+    print("📊 Setting up performance monitoring...")
+    monitor = MultiSessionMonitor(session_manager)
+    monitor.start_monitoring()
+
+    # Step 5: Network configuration
+    print("🌐 Configuring network for multi-user access...")
+    network_config = configure_multi_user_network(num_sessions)
+    print("   Network configuration completed")
+
+    print(f"\n✅ Multi-user environment configured for {num_sessions} simultaneous sessions")
+    print("   - Session management: ACTIVE")
+    print("   - Performance monitoring: ACTIVE")
+    print("   - Resource allocation: PLANNED")
+    print("   - Network configuration: COMPLETED")
+
+    return {
+        'session_manager': session_manager,
+        'monitor': monitor,
+        'requirements': requirements,
+        'validation': validation,
+        'allocation_plan': allocation_plan,
+        'network_config': network_config
+    }
+
+def test_multi_user_scalability(session_manager: DynamicSessionManager,
+                              monitor: MultiSessionMonitor,
+                              num_sessions: int = 10):
+    """Test scalability with multiple concurrent sessions"""
+
+    print(f"\n🧪 Testing scalability with {num_sessions} concurrent sessions...")
+
+    # Create sessions gradually
+    created_sessions = []
+    start_time = time.time()
+
+    for i in range(num_sessions):
+        user_id = f"student_{i:02d}"
+        session_id = f"session_{i:02d}"
+
+        print(f"   Creating session {i+1}/{num_sessions}...")
+
+        session_dir = session_manager.create_session_with_adaptation(
+            user_id, session_id, performance_target=10.0
+        )
+
+        if session_dir:
+            created_sessions.append(session_id)
+            print(f"   ✅ Session {session_id} created successfully")
+        else:
+            print(f"   ❌ Failed to create session {session_id}")
+            break
+
+    creation_time = time.time() - start_time
+
+    # Monitor performance
+    print(f"\n📈 Performance during session creation:")
+    print(f"   Sessions created: {len(created_sessions)}/{num_sessions}")
+    print(f"   Creation time: {creation_time:.2f} seconds")
+
+    # Get system overview after all sessions are created
+    time.sleep(5)  # Wait for sessions to stabilize
+    overview = monitor.get_system_overview()
+
+    print(f"   System overview after all sessions:")
+    print(f"     Average FPS: {overview.get('average_fps', 0):.2f}")
+    print(f"     Average GPU Usage: {overview.get('average_gpu_usage', 0):.2%}")
+    print(f"     Average CPU Usage: {overview.get('average_cpu_usage', 0):.2%}")
+    print(f"     Performance Score: {overview.get('performance_score', 0):.2%}")
+
+    # Generate final report
+    report = monitor.generate_performance_report()
+    print(f"\n📊 Final Performance Report:")
+    print(report)
+
+    return {
+        'successful_sessions': len(created_sessions),
+        'total_requested': num_sessions,
+        'creation_time': creation_time,
+        'performance_overview': overview,
+        'final_report': report
+    }
+
+# Example usage
+if __name__ == "__main__":
+    # Set up multi-user environment
+    setup_results = setup_multi_user_environment(num_sessions=10)
+
+    # Test scalability
+    test_results = test_multi_user_scalability(
+        setup_results['session_manager'],
+        setup_results['monitor'],
+        num_sessions=10
+    )
+
+    print(f"\n🎯 Multi-user scalability test completed!")
+    print(f"   Successful sessions: {test_results['successful_sessions']}/{test_results['total_requested']}")
+    print(f"   Performance score: {test_results['performance_overview'].get('performance_score', 0):.2%}")
+```
+
+## Troubleshooting Multi-User Issues
+
+### Common Scalability Issues
+
+#### Resource Contention
+- **Symptoms**: Degraded performance when multiple sessions active
+- **Solutions**:
+  - Implement proper resource limits
+  - Use cgroups for CPU and memory control
+  - Configure GPU compute shares
+  - Monitor resource usage continuously
+
+#### Network Bottlenecks
+- **Symptoms**: High latency, connection drops
+- **Solutions**:
+  - Implement QoS policies
+  - Use dedicated network for Isaac Sim traffic
+  - Configure bandwidth allocation per session
+  - Monitor network performance
+
+#### Session Isolation Failures
+- **Symptoms**: Sessions affecting each other's performance
+- **Solutions**:
+  - Verify proper containerization/network isolation
+  - Check resource allocation correctness
+  - Implement monitoring for cross-session impact
+  - Use process isolation techniques
+
+### Diagnostic Tools
+
+```python
+def diagnose_scalability_issues(session_manager: SessionManager,
+                              monitor: MultiSessionMonitor) -> dict:
+    """Diagnose common scalability issues"""
+
+    diagnostics = {
+        'resource_contention': check_resource_contention(monitor),
+        'network_issues': check_network_issues(),
+        'session_isolation': check_session_isolation(session_manager),
+        'performance_degradation': check_performance_degradation(monitor)
+    }
+
+    issues = []
+    if diagnostics['resource_contention']['severe']:
+        issues.append("High resource contention detected")
+    if diagnostics['network_issues']['bandwidth_exceeded']:
+        issues.append("Network bandwidth limits exceeded")
+    if diagnostics['session_isolation']['cross_impact'] > 0.1:
+        issues.append("Session isolation issues detected")
+    if diagnostics['performance_degradation']['trend'] == 'decreasing':
+        issues.append("Performance degradation over time")
+
+    return diagnostics, issues
+
+def check_resource_contention(monitor: MultiSessionMonitor) -> dict:
+    """Check for resource contention issues"""
+    overview = monitor.get_system_overview()
+
+    return {
+        'severe': overview.get('system_load', 0) > 0.9,  # Over 90% system load
+        'gpu_bottleneck': overview.get('average_gpu_usage', 0) > 0.95,
+        'cpu_bottleneck': overview.get('average_cpu_usage', 0) > 0.95,
+        'memory_bottleneck': overview.get('average_memory_usage', 0) > 0.95
+    }
+
+def check_network_issues() -> dict:
+    """Check for network-related issues"""
+    # This would check network metrics
+    return {
+        'bandwidth_exceeded': False,
+        'latency_issues': False,
+        'packet_loss': False
+    }
+
+def check_session_isolation(session_manager: SessionManager) -> dict:
+    """Check for session isolation issues"""
+    return {
+        'cross_impact': 0.05,  # Simulated low cross-impact
+        'resource_leakage': False,
+        'namespace_issues': False
+    }
+
+def check_performance_degradation(monitor: MultiSessionMonitor) -> dict:
+    """Check for performance degradation over time"""
+    # Analyze metrics history for trends
+    return {
+        'trend': 'stable',  # Could be 'increasing', 'decreasing', or 'stable'
+        'rate_of_degradation': 0.0  # Rate of performance decrease per minute
+    }
+```
+
+## Best Practices for Multi-User Scalability
+
+1. **Resource Planning**: Plan resources carefully based on hardware capabilities
+2. **Session Isolation**: Implement proper session isolation to prevent interference
+3. **Continuous Monitoring**: Monitor performance continuously across all sessions
+4. **Dynamic Adaptation**: Adjust resources dynamically based on usage patterns
+5. **Network Configuration**: Properly configure network for multi-user access
+6. **Performance Testing**: Regularly test scalability with realistic loads
+
+## Performance Targets
+
+For supporting 10 simultaneous student sessions:
+- **Individual Session Performance**: Maintain target FPS (10-30) per session
+- **Resource Utilization**: Max 80% utilization of total system resources
+- **Session Isolation**: No cross-session performance impact
+- **Network Performance**: &lt;10ms latency per session
+- **System Stability**: 99.9% uptime during concurrent usage
+
+## Next Steps
+
+After implementing multi-user scalability:
+1. Explore cloud-based Isaac Sim deployment options
+2. Implement automated session provisioning
+3. Set up advanced monitoring and alerting
+4. Create user management and scheduling systems
+5. Plan for scaling beyond 10 sessions if needed
+
+## References
+
+- [Isaac Sim Multi-User Deployment Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/programming_guide/advanced/multi_user.html)
+- [Containerized Isaac Sim](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common/tree/main/docker)
+- [GPU Resource Management](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
+- [Multi-User System Administration](https://docs.omniverse.nvidia.com/isaacsim/latest/setup_guide/multi_user.html)

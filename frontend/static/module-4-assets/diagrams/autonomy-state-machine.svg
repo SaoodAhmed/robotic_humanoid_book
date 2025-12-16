@@ -1,0 +1,69 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .state { fill: #e3f2fd; stroke: #1976d2; stroke-width: 2; rx: 10; ry: 10; }
+    .transition { stroke: #666; stroke-width: 2; marker-end: url(#arrowhead); }
+    .label { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+    </marker>
+  </defs>
+
+  <text x="400" y="30" class="label" font-weight="bold">VLA Autonomy State Machine</text>
+
+  <!-- States -->
+  <rect x="350" y="80" width="100" height="50" class="state"/>
+  <text x="400" y="110" class="label">IDLE</text>
+
+  <rect x="350" y="180" width="100" height="50" class="state"/>
+  <text x="400" y="210" class="label">LISTENING</text>
+
+  <rect x="150" y="280" width="100" height="50" class="state"/>
+  <text x="200" y="310" class="label">PROCESSING</text>
+
+  <rect x="350" y="280" width="100" height="50" class="state"/>
+  <text x="400" y="310" class="label">PLANNING</text>
+
+  <rect x="550" y="280" width="100" height="50" class="state"/>
+  <text x="600" y="310" class="label">EXECUTING</text>
+
+  <rect x="350" y="380" width="100" height="50" class="state"/>
+  <text x="400" y="410" class="label">ERROR</text>
+
+  <rect x="350" y="480" width="100" height="50" class="state"/>
+  <text x="400" y="510" class="label">RECOVERY</text>
+
+  <!-- Transitions -->
+  <line x1="400" y1="130" x2="400" y2="180" class="transition"/>
+  <text x="410" y="155" font-size="10">Voice Activation</text>
+
+  <line x1="400" y1="230" x2="400" y2="280" class="transition"/>
+  <text x="410" y="255" font-size="10">STT Success</text>
+
+  <line x1="350" y1="305" x2="250" y2="305" class="transition"/>
+  <text x="300" y="295" font-size="10">STT Failed</text>
+
+  <line x1="450" y1="305" x2="550" y2="305" class="transition"/>
+  <text x="500" y="295" font-size="10">Plan Gen</text>
+
+  <line x1="400" y1="330" x2="400" y2="380" class="transition"/>
+  <text x="410" y="355" font-size="10">Plan Failed</text>
+
+  <line x1="600" y1="330" x2="400" y2="400" class="transition"/>
+  <text x="520" y="360" font-size="10">Exec Complete</text>
+
+  <line x1="400" y1="430" x2="400" y2="480" class="transition"/>
+  <text x="410" y="455" font-size="10">Recovery Init</text>
+
+  <line x1="400" y1="530" x2="400" y2="550" class="transition"/>
+  <line x1="400" y1="550" x2="100" y2="305" class="transition"/>
+  <text x="250" y="540" font-size="10">Recovery Success</text>
+
+  <line x1="450" y1="405" x2="550" y2="330" class="transition"/>
+  <text x="520" y="370" font-size="10">Exec Failed</text>
+
+  <!-- Return to IDLE from EXECUTING -->
+  <line x1="550" y1="280" x2="450" y2="130" class="transition"/>
+  <text x="510" y="200" font-size="10">Task Complete</text>
+</svg>

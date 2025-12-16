@@ -1,0 +1,93 @@
+.simulationDiagram {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background-color: var(--ifm-color-emphasis-100);
+  border-radius: var(--ifm-global-radius);
+  text-align: center;
+}
+
+.simulationDiagram.withBorder {
+  border: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.simulationDiagram.type-architecture {
+  background-color: rgba(100, 149, 237, 0.05);
+}
+
+.simulationDiagram.type-pipeline {
+  background-color: rgba(50, 205, 50, 0.05);
+}
+
+.simulationDiagram.type-system {
+  background-color: rgba(255, 165, 0, 0.05);
+}
+
+.simulationDiagram.type-flow {
+  background-color: rgba(221, 160, 221, 0.05);
+}
+
+.simulationDiagram.maxWidth-sm {
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.simulationDiagram.maxWidth-md {
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.simulationDiagram.maxWidth-lg {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.simulationDiagram.maxWidth-xl {
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.simulationDiagram.maxWidth-full {
+  max-width: 100%;
+}
+
+.diagramCaption {
+  margin-bottom: 1rem;
+}
+
+.diagramTitle {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.diagramDescription {
+  font-size: 0.9rem;
+  color: var(--ifm-color-secondary-darkest);
+  margin-bottom: 0;
+}
+
+.diagramContent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Responsive design */
+@media (max-width: 996px) {
+  .simulationDiagram {
+    padding: 1rem;
+  }
+
+  .diagramTitle {
+    font-size: 1rem;
+  }
+
+  .diagramDescription {
+    font-size: 0.85rem;
+  }
+}

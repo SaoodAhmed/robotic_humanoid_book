@@ -1,0 +1,599 @@
+# Isaac Sim Architecture Diagrams and System Overview
+
+## Overview
+
+This document provides architectural diagrams and system overviews for Isaac Sim, focusing on the components and workflows relevant to Module 3: The AI-Robot Brain. The diagrams illustrate the key components, data flows, and system architecture for Isaac Sim in the context of synthetic data generation and perception pipeline development.
+
+## Learning Objectives
+
+By the end of this section, students will understand:
+- The core architecture of Isaac Sim and its components
+- How Isaac Sim integrates with Isaac ROS and Nav2
+- The data flow from scene creation to synthetic dataset generation
+- The system architecture for multi-user educational environments
+- The sensor simulation architecture for high-density deployments
+
+## Isaac Sim Core Architecture
+
+### System Components Overview
+
+Isaac Sim is built on NVIDIA's Omniverse platform and includes several core components that work together to create photorealistic simulation environments:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Isaac Sim Architecture                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────┐  │
+│  │   USD Scene     │    │  Replicator     │    │  Renderer   │  │
+│  │   Management    │◄──►│   Framework     │◄──►│   (RTX)     │  │
+│  │                 │    │                 │    │             │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────┘  │
+│         │                       │                     │         │
+│         ▼                       ▼                     ▼         │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────┐  │
+│  │   Physics       │    │  Synthetic      │    │  Sensor     │  │
+│  │   Engine        │    │  Dataset        │    │  Simulation │  │
+│  │  (PhysX)        │    │  Generation     │    │             │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────┘  │
+│         │                       │                     │         │
+│         └───────────────────────┼─────────────────────┘         │
+│                                 ▼                               │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                   Omniverse Nucleus                   │    │
+│  │              (Asset Management & Sync)                │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+#### USD Scene Management
+- **Purpose**: Manages the Universal Scene Description files that define the simulation environment
+- **Function**: Handles scene hierarchy, transforms, materials, and object properties
+- **Integration**: Works with Omniverse for collaborative editing and asset management
+
+#### Replicator Framework
+- **Purpose**: Generates synthetic datasets with randomized properties
+- **Function**: Creates photorealistic images, depth maps, and semantic annotations
+- **Features**: Domain randomization, sensor simulation, ground truth generation
+
+#### RTX Renderer
+- **Purpose**: Provides photorealistic rendering using NVIDIA RTX technology
+- **Function**: Real-time ray tracing, global illumination, physically-based rendering
+- **Requirements**: RTX-capable GPU with sufficient VRAM
+
+#### Physics Engine (PhysX)
+- **Purpose**: Simulates realistic physics interactions
+- **Function**: Collision detection, rigid body dynamics, soft body simulation
+- **Integration**: Works with USD scene definitions
+
+#### Sensor Simulation
+- **Purpose**: Simulates various sensor types (cameras, LiDAR, IMU, etc.)
+- **Function**: Generates realistic sensor data based on scene properties
+- **Types**: RGB cameras, depth cameras, LiDAR, IMU, GPS, force/torque sensors
+
+## Isaac Sim to Isaac ROS Integration Architecture
+
+### Data Flow Architecture
+
+The integration between Isaac Sim and Isaac ROS enables the flow of sensor data from simulation to ROS 2 processing:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                 Isaac Sim to Isaac ROS Integration                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐  │
+│  │   Isaac Sim     │    │  Sensor Data    │    │   ROS 2 Topics      │  │
+│  │   Scene &       │───►│   Generation    │───►│   (sensor_msgs/)    │  │
+│  │   Simulation    │    │   (RGB, Depth,  │    │                     │  │
+│  │                 │    │   Semantic)     │    │                     │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────┘  │
+│         │                       │                           │           │
+│         ▼                       ▼                           ▼           │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐  │
+│  │   Synthetic     │    │   Isaac ROS     │    │   Perception        │  │
+│  │   Dataset       │    │   Processing    │    │   Nodes (VSLAM,     │  │
+│  │   Export        │    │   Pipeline      │    │   Object Detection) │  │
+│  │                 │    │                 │    │                     │  │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────┘  │
+│         │                       │                           │           │
+│         └───────────────────────┼───────────────────────────┘           │
+│                                 ▼                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                    ROS 2 Middleware Layer                       │    │
+│  │              (Message Passing & Services)                       │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Integration Components
+
+#### Isaac Sim Sensor Outputs
+- **RGB Cameras**: Generate color images for perception tasks
+- **Depth Sensors**: Provide depth information for 3D reconstruction
+- **Semantic Segmentation**: Generate pixel-level class labels
+- **LiDAR Simulation**: Create 3D point cloud data
+
+#### ROS 2 Topic Bridge
+- **Function**: Bridges Isaac Sim sensor data to ROS 2 topics
+- **Formats**: Converts sensor data to standard ROS message formats
+- **Synchronization**: Ensures temporal alignment of sensor data
+
+#### Isaac ROS Processing Pipeline
+- **VSLAM Nodes**: Visual Simultaneous Localization and Mapping
+- **Perception Nodes**: Object detection, tracking, and classification
+- **Sensor Fusion**: Combines data from multiple sensors
+
+## Data Generation Pipeline Architecture
+
+### End-to-End Workflow
+
+The complete data generation pipeline from scene creation to model training:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              Data Generation Pipeline                                   │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
+│  │ Scene        │    │ Domain       │    │ Synthetic    │    │ Dataset              │   │
+│  │ Creation     │───►│ Randomization│───►│ Data         │───►│ Validation &         │   │
+│  │ (USD)        │    │ (Lighting,   │    │ Generation   │    │ Quality Assessment   │   │
+│  │              │    │ Materials,   │    │ (RGB, Depth, │    │                      │   │
+│  │              │    │ Objects)     │    │ Semantic)    │    │                      │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────────────┘   │
+│         │                     │                     │                     │             │
+│         ▼                     ▼                     ▼                     ▼             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
+│  │ Lighting     │    │ Material     │    │ Sensor       │    │ Format Conversion    │   │
+│  │ Setup        │    │ Assignment   │    │ Simulation   │    │ (COCO, YOLO, TFRecord│   │
+│  │ (HDR, Global │    │ (PBR,        │    │ (Cameras,    │    │ , etc.)             │   │
+│  │ Illumination) │    │ Textures)    │    │ LiDAR, IMU)  │    │                      │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────────────┘   │
+│         │                     │                     │                     │             │
+│         └─────────────────────┼─────────────────────┼─────────────────────┘             │
+│                               ▼                     ▼                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │                           Performance Monitoring                              │    │
+│  │                    (FPS, Resource Usage, Quality Metrics)                     │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Pipeline Stages
+
+#### Scene Creation and Setup
+- **USD Composition**: Building scenes using Universal Scene Description
+- **Asset Integration**: Adding 3D models, materials, and environments
+- **Physics Configuration**: Setting up physical properties and interactions
+
+#### Domain Randomization
+- **Lighting Variation**: Randomizing light positions, intensities, and colors
+- **Material Properties**: Varying surface properties for robustness
+- **Object Placement**: Randomizing object positions and orientations
+
+#### Synthetic Data Generation
+- **RGB Image Capture**: High-quality color image generation
+- **Depth Map Creation**: Accurate depth information
+- **Semantic Annotation**: Pixel-level class labeling
+- **Sensor Simulation**: Multi-modal sensor data generation
+
+#### Quality Assurance
+- **Dataset Validation**: Checking for completeness and consistency
+- **Quality Assessment**: Measuring data quality metrics
+- **Format Conversion**: Exporting to standard ML formats
+
+## Multi-User Educational Environment Architecture
+
+### System Architecture for 10 Concurrent Sessions
+
+The architecture supporting up to 10 simultaneous student sessions:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Multi-User Educational Environment                               │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                         Isaac Sim Host System                                   │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │   │
+│  │  │   Student 1     │  │   Student 2     │  │   Student N     │  │  Resource │ │   │
+│  │  │   Session       │  │   Session       │  │   Session       │  │  Manager  │ │   │
+│  │  │  (Isaac Sim    │  │  (Isaac Sim    │  │  (Isaac Sim    │  │           │ │   │
+│  │  │  Instance)     │  │  Instance)     │  │  Instance)     │  │           │ │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │   │
+│  │         │                       │                       │              │         │   │
+│  │         ▼                       ▼                       ▼              ▼         │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │   │
+│  │  │  Session Isolation│  │  Session Isolation│  │  Session Isolation│  │  Resource │ │   │
+│  │  │  (GPU, CPU,     │  │  (GPU, CPU,     │  │  (GPU, CPU,     │  │  Allocation │ │   │
+│  │  │  Memory)        │  │  Memory)        │  │  Memory)        │  │           │ │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Hardware Resources                                       │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   GPU       │  │     CPU     │  │    RAM      │  │  Network & Storage   │   │   │
+│  │  │  (RTX 4090) │  │   (32 cores)│  │   (64GB)    │  │  (10Gbps, 1TB SSD)  │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Monitoring & Management                                  │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │ Performance │  │ Session     │  │ Quality     │  │ Security & Access    │   │   │
+│  │  │ Monitoring  │  │ Management  │  │ Assurance   │  │ Control              │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Session Isolation Components
+
+#### GPU Virtualization
+- **Compute Isolation**: Each session gets dedicated GPU compute shares
+- **Memory Isolation**: GPU memory allocation per session with limits
+- **Performance Monitoring**: Real-time GPU usage tracking
+
+#### Resource Management
+- **CPU Allocation**: Core assignment and scheduling per session
+- **Memory Management**: RAM allocation with overcommitment handling
+- **Network Isolation**: Separate network namespaces per session
+
+#### Session Management
+- **Lifecycle Management**: Session creation, monitoring, and cleanup
+- **Quality of Service**: Prioritization and resource guarantees
+- **Security Isolation**: Preventing cross-session interference
+
+## High-Density Sensor Architecture
+
+### Architecture for 50 Concurrent Sensors
+
+The system architecture supporting up to 50 concurrent sensors per simulation:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        High-Density Sensor Architecture                                 │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Isaac Sim Simulation Core                                │   │
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐    │   │
+│  │  │                        Scene & Physics                                  │    │   │
+│  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐   │    │   │
+│  │  │  │   Objects   │  │   Lighting  │  │   Physics   │  │   Materials  │   │    │   │
+│  │  │  │             │  │             │  │             │  │              │   │    │   │
+│  │  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────┘   │    │   │
+│  │  └─────────────────────────────────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Sensor Management Layer                                │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   RGB       │  │   Depth     │  │   LiDAR     │  │   Other Sensors      │   │   │
+│  │  │   Cameras   │  │   Cameras   │  │   Sensors   │  │   (IMU, GPS, etc.)   │   │   │
+│  │  │   (N)       │  │   (N)       │  │   (N)       │  │   (N)                │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  │         │                │                │                       │             │   │
+│  │         └────────────────┼────────────────┼───────────────────────┘             │   │
+│  │                          ▼                ▼                                     │   │
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐    │   │
+│  │  │                     Shared Rendering Pipeline                           │    │   │
+│  │  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │    │   │
+│  │  │  │  Geometry       │  │  Lighting       │  │  Multi-Render         │  │    │   │
+│  │  │  │  Caching        │  │  Caching        │  │  Targets              │  │    │   │
+│  │  │  │                 │  │                 │  │                       │  │    │   │
+│  │  │  └─────────────────┘  └─────────────────┘  └─────────────────────────┘  │    │   │
+│  │  └─────────────────────────────────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Resource Management Layer                              │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   GPU       │  │   Memory    │  │   Bandwidth │  │   Quality            │   │   │
+│  │  │   Manager   │  │   Manager   │  │   Manager   │  │   Assurance          │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Scheduling & Optimization                              │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Priority  │  │   Rate      │  │   Batch     │  │   Compression        │   │   │
+│  │  │   Scheduler │  │   Control   │  │   Processing│  │   & Streaming        │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Sensor Architecture Components
+
+#### Sensor Management Layer
+- **Sensor Registry**: Tracks all active sensors and their configurations
+- **Type Grouping**: Groups similar sensors for shared processing
+- **Priority Management**: Handles critical vs non-critical sensor updates
+
+#### Shared Rendering Pipeline
+- **Geometry Caching**: Shared geometry calculations across sensors
+- **Lighting Caching**: Shared lighting calculations for efficiency
+- **Multi-Render Targets**: Single rendering pass for multiple sensors
+
+#### Resource Management
+- **GPU Allocation**: Dynamic GPU resource allocation per sensor
+- **Memory Management**: Efficient memory usage for sensor data
+- **Bandwidth Control**: Network bandwidth allocation for sensor data
+
+#### Optimization Components
+- **Scheduling System**: Efficient update scheduling based on priorities
+- **Rate Control**: Adaptive update rates based on system load
+- **Data Compression**: Efficient data transmission and storage
+- **Quality Assurance**: Continuous monitoring of sensor data quality
+
+## VSLAM to Nav2 Integration Architecture
+
+### System Architecture for Navigation Pipeline
+
+The integration architecture connecting Isaac ROS VSLAM outputs to Nav2 for path planning:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                      VSLAM to Nav2 Integration Architecture                             │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Isaac Sim Environment                                    │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────────┐ │   │
+│  │  │   3D Scene      │  │   Sensor        │  │   Ground Truth &                │ │   │
+│  │  │   (USD Format)  │  │   Simulation    │  │   Semantic Annotation           │ │   │
+│  │  │                 │  │   (Cameras,     │  │   (For Training & Validation)   │ │   │
+│  │  │                 │  │   LiDAR)        │  │                                 │ │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Isaac ROS Pipeline                                       │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────────┐ │   │
+│  │  │   Isaac ROS     │  │   VSLAM         │  │   Pose Estimation &             │ │   │
+│  │  │   Bridge        │  │   Processing    │  │   Mapping (geometry_msgs/Pose)  │ │   │
+│  │  │   (sensor_msgs/ │  │   (Visual SLAM) │  │   (nav_msgs/OccupancyGrid)      │ │   │
+│  │  │   to ROS)       │  │                 │  │                                 │ │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────────┘ │   │
+│  │         │                       │                           │                   │   │
+│  │         └───────────────────────┼───────────────────────────┘                   │   │
+│  │                                 ▼                                               │   │
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐    │   │
+│  │  │                    ROS 2 Middleware Layer                               │    │   │
+│  │  │           (Topic Communication & Services)                              │    │   │
+│  │  └─────────────────────────────────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Navigation2 (Nav2)                                     │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────────┐ │   │
+│  │  │   AMCL          │  │   Global        │  │   Local Planner &               │ │   │
+│  │  │   (Localization) │  │   Planner       │  │   Controller (MoveBase)         │ │   │
+│  │  │   (sensor_msgs/  │  │   (Path        │  │   (geometry_msgs/Twist)         │ │   │
+│  │  │   LaserScan to   │  │   Planning)    │  │                                 │ │   │
+│  │  │   geometry_msgs/ │  │   (nav_msgs/   │  │                                 │ │   │
+│  │  │   PoseWithCovar) │  │   Path)        │  │                                 │ │   │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────────┘ │   │
+│  │         │                       │                           │                   │   │
+│  │         └───────────────────────┼───────────────────────────┘                   │   │
+│  │                                 ▼                                               │   │
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐    │   │
+│  │  │                        Bipedal Humanoid                               │    │   │
+│  │  │                 (Kinematic Constraints)                               │    │   │
+│  │  └─────────────────────────────────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Integration Components
+
+#### Isaac Sim Environment
+- **Scene Simulation**: Provides realistic 3D environments for navigation
+- **Sensor Simulation**: Generates realistic sensor data for perception
+- **Ground Truth**: Provides accurate pose and map information for training
+
+#### Isaac ROS Pipeline
+- **Sensor Bridge**: Converts Isaac Sim sensor data to ROS formats
+- **VSLAM Processing**: Performs Visual SLAM using Isaac ROS nodes
+- **Pose Estimation**: Provides accurate pose estimates for navigation
+
+#### ROS 2 Middleware
+- **Topic Communication**: Handles message passing between components
+- **Service Interfaces**: Provides service-based communication
+- **TF Transforms**: Manages coordinate frame transformations
+
+#### Navigation2 Components
+- **AMCL**: Adaptive Monte Carlo Localization for robot localization
+- **Global Planner**: Path planning for navigation goals
+- **Local Planner**: Local path following and obstacle avoidance
+- **Controller**: Velocity command generation for robot motion
+
+#### Bipedal Humanoid Integration
+- **Kinematic Constraints**: Specialized constraints for bipedal locomotion
+- **Step Planning**: Planning for bipedal gait patterns
+- **Balance Control**: Maintaining balance during navigation
+
+## Security Architecture
+
+### Secure Communication Architecture
+
+The security architecture for Isaac Sim in educational environments:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           Isaac Sim Security Architecture                               │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Network Security Layer                                   │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Firewall  │  │   VPN       │  │   Network   │  │   Intrusion          │   │   │
+│  │  │   Rules     │  │   Access    │  │   Segmentation│  │   Detection        │   │   │
+│  │  │             │  │             │  │             │  │   System           │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Application Security Layer                             │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Session   │  │   User      │  │   Data      │  │   Authentication     │   │   │
+│  │  │   Isolation │  │   Access    │  │   Privacy   │  │   & Authorization    │   │   │
+│  │  │             │  │   Control   │  │   (Student  │  │   (OAuth, JWT)       │   │   │
+│  │  │             │  │             │  │   Content)  │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Data Security Layer                                      │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Data      │  │   Synthetic │  │   Dataset   │  │   Secure Storage     │   │   │
+│  │  │   Encryption│  │   Dataset   │  │   Integrity │  │   (Encrypted Volumes │   │   │
+│  │  │   (TLS,     │  │   Security  │  │   (Hashes,  │  │   & Access Control)  │   │   │
+│  │  │   AES)      │  │             │  │   Signatures)│  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Security Components
+
+#### Network Security
+- **Firewall Rules**: Restrict access to Isaac Sim services
+- **VPN Access**: Secure remote access for students
+- **Network Segmentation**: Isolate Isaac Sim network traffic
+- **Intrusion Detection**: Monitor for security threats
+
+#### Application Security
+- **Session Isolation**: Prevent cross-session data access
+- **User Access Control**: Role-based access to different features
+- **Data Privacy**: Protect student-generated content
+- **Authentication**: Secure user authentication and authorization
+
+#### Data Security
+- **Data Encryption**: Encrypt data in transit and at rest
+- **Dataset Security**: Protect synthetic datasets from unauthorized access
+- **Integrity Checks**: Verify dataset integrity with hashes and signatures
+- **Secure Storage**: Encrypted storage with access controls
+
+## Performance Architecture
+
+### Performance Optimization Architecture
+
+The architecture for maintaining performance targets (30 FPS basic, 10 FPS complex scenes):
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Performance Architecture                                         │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Performance Monitoring                                   │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   FPS       │  │   Resource  │  │   Quality   │  │   Bottleneck         │   │   │
+│  │  │   Tracking  │  │   Usage     │  │   Metrics   │  │   Detection          │   │   │
+│  │  │             │  │   Monitor   │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Adaptive Quality System                                │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   LOD       │  │   Resolution│  │   Render    │  │   Dynamic Quality    │   │   │
+│  │  │   System    │  │   Scaling   │  │   Settings  │  │   Adjustment         │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Resource Optimization                                  │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Memory    │  │   GPU       │  │   CPU       │  │   Bandwidth          │   │   │
+│  │  │   Management│  │   Scheduling│  │   Scheduling│  │   Optimization       │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                │                                                      │
+│                                ▼                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │                        Scalability Architecture                                 │   │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐   │   │
+│  │  │   Load      │  │   Session   │  │   Resource  │  │   Performance        │   │   │
+│  │  │   Balancing │  │   Scaling   │  │   Pooling   │  │   Scaling            │   │   │
+│  │  │             │  │             │  │             │  │                      │   │   │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └──────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Performance Components
+
+#### Monitoring System
+- **FPS Tracking**: Real-time frame rate monitoring
+- **Resource Usage**: CPU, GPU, and memory usage tracking
+- **Quality Metrics**: Visual and simulation quality assessment
+- **Bottleneck Detection**: Identify performance bottlenecks
+
+#### Adaptive Quality System
+- **LOD System**: Automatic level of detail adjustment
+- **Resolution Scaling**: Dynamic resolution based on performance
+- **Render Settings**: Adaptive rendering quality settings
+- **Quality Adjustment**: Dynamic quality parameter adjustment
+
+#### Resource Optimization
+- **Memory Management**: Efficient memory allocation and usage
+- **GPU Scheduling**: Optimal GPU resource allocation
+- **CPU Scheduling**: Efficient CPU core utilization
+- **Bandwidth Optimization**: Network and I/O optimization
+
+#### Scalability Architecture
+- **Load Balancing**: Distribute load across available resources
+- **Session Scaling**: Adjust session parameters based on load
+- **Resource Pooling**: Efficient resource sharing and reuse
+- **Performance Scaling**: Scale performance parameters dynamically
+
+## Summary
+
+The Isaac Sim architecture provides a comprehensive platform for synthetic data generation and robotics simulation. The system is designed to handle complex scenarios with multiple sensors, support educational environments with multiple concurrent users, and maintain performance targets through adaptive optimization techniques. The integration with Isaac ROS and Nav2 enables end-to-end development of perception and navigation pipelines for humanoid robots.
+
+## Next Steps
+
+After understanding the Isaac Sim architecture:
+1. Implement specific architectural components in your simulation environment
+2. Configure the system for your specific use case requirements
+3. Validate the architecture with performance testing
+4. Deploy and monitor the system in a production environment
+5. Continuously optimize based on usage patterns and requirements
+
+## References
+
+- [Isaac Sim Architecture Overview](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html)
+- [Isaac ROS Integration Guide](https://nvidia-isaac-ros.github.io/released/packages/isaac_ros_visual_slam/index.html)
+- [Navigation2 Documentation](https://navigation.ros.org/)
+- [Omniverse Platform Architecture](https://www.nvidia.com/en-us/omniverse/)

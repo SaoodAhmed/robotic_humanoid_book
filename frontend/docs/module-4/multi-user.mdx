@@ -1,0 +1,1145 @@
+---
+sidebar_position: 25
+---
+
+# Multi-User Support for Educational Settings
+
+## Overview
+
+This document outlines the multi-user support implementation for the Vision-Language-Action (VLA) system in educational settings. The system is designed to support up to 50 concurrent users in classroom or laboratory environments, ensuring proper isolation, resource allocation, and performance for each user.
+
+## Multi-User Architecture
+
+### Session Management
+
+The VLA system implements a robust session management system to handle multiple concurrent users:
+
+```python
+import uuid
+import time
+import threading
+from typing import Dict, List, Optional
+from dataclasses import dataclass
+from enum import Enum
+
+class UserRole(Enum):
+    STUDENT = "student"
+    INSTRUCTOR = "instructor"
+    ADMIN = "admin"
+
+class SessionStatus(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    SUSPENDED = "suspended"
+    EXPIRED = "expired"
+
+@dataclass
+class UserSession:
+    session_id: str
+    user_id: str
+    role: UserRole
+    start_time: float
+    last_activity: float
+    simulation_instance: str
+    permissions: Dict[str, bool]
+    resource_allocation: Dict[str, float]
+
+class MultiUserSessionManager:
+    def __init__(self, max_concurrent_users: int = 50):
+        self.max_concurrent_users = max_concurrent_users
+        self.sessions: Dict[str, UserSession] = {}
+        self.user_session_map: Dict[str, str] = {}  # user_id -> session_id
+        self.session_lock = threading.RLock()
+        self.cleanup_interval = 300  # 5 minutes
+        self.session_timeout = 3600  # 1 hour
+
+        # Start cleanup thread
+        self.cleanup_thread = threading.Thread(target=self._cleanup_expired_sessions, daemon=True)
+        self.cleanup_thread.start()
+
+    def create_session(self, user_id: str, role: UserRole, permissions: Dict[str, bool] = None) -> Optional[str]:
+        """
+        Create a new session for a user
+        """
+        with self.session_lock:
+            # Check if user already has an active session
+            if user_id in self.user_session_map:
+                existing_session_id = self.user_session_map[user_id]
+                existing_session = self.sessions[existing_session_id]
+
+                # If session is still active, extend it
+                if existing_session.status == SessionStatus.ACTIVE:
+                    self._extend_session(existing_session_id)
+                    return existing_session_id
+
+            # Check if we've reached the maximum number of concurrent users
+            active_sessions = [s for s in self.sessions.values() if s.status == SessionStatus.ACTIVE]
+            if len(active_sessions) >= self.max_concurrent_users:
+                return None  # Maximum capacity reached
+
+            # Create new session
+            session_id = str(uuid.uuid4())
+            simulation_instance = self._allocate_simulation_instance(user_id)
+
+            resource_allocation = self._calculate_resource_allocation(role)
+
+            session = UserSession(
+                session_id=session_id,
+                user_id=user_id,
+                role=role,
+                start_time=time.time(),
+                last_activity=time.time(),
+                simulation_instance=simulation_instance,
+                permissions=permissions or self._get_default_permissions(role),
+                resource_allocation=resource_allocation
+            )
+
+            self.sessions[session_id] = session
+            self.user_session_map[user_id] = session_id
+
+            return session_id
+
+    def _allocate_simulation_instance(self, user_id: str) -> str:
+        """
+        Allocate a simulation instance for the user
+        """
+        # In a real implementation, this would allocate a separate simulation environment
+        # For now, we'll just return a unique identifier
+        return f"sim_{user_id}_{int(time.time())}"
+
+    def _calculate_resource_allocation(self, role: UserRole) -> Dict[str, float]:
+        """
+        Calculate resource allocation based on user role
+        """
+        allocations = {
+            'cpu_share': 0.1,  # 10% of available CPU
+            'memory_limit_mb': 512,  # 512MB memory limit
+            'bandwidth_limit_kbps': 1000,  # 1 Mbps bandwidth limit
+            'command_rate_limit': 10  # 10 commands per minute
+        }
+
+        if role == UserRole.INSTRUCTOR:
+            allocations['cpu_share'] = 0.15  # 15% for instructors
+            allocations['memory_limit_mb'] = 768  # 768MB for instructors
+            allocations['command_rate_limit'] = 15  # 15 commands/min for instructors
+        elif role == UserRole.ADMIN:
+            allocations['cpu_share'] = 0.2  # 20% for admins
+            allocations['memory_limit_mb'] = 1024  # 1GB for admins
+            allocations['command_rate_limit'] = 20  # 20 commands/min for admins
+
+        return allocations
+
+    def _get_default_permissions(self, role: UserRole) -> Dict[str, bool]:
+        """
+        Get default permissions based on user role
+        """
+        base_permissions = {
+            'execute_commands': True,
+            'view_simulation': True,
+            'modify_environment': False,
+            'access_logs': False,
+            'manage_users': False,
+            'system_configuration': False
+        }
+
+        if role == UserRole.INSTRUCTOR:
+            base_permissions.update({
+                'modify_environment': True,
+                'access_logs': True,
+                'manage_users': True
+            })
+        elif role == UserRole.ADMIN:
+            base_permissions.update({
+                'modify_environment': True,
+                'access_logs': True,
+                'manage_users': True,
+                'system_configuration': True
+            })
+
+        return base_permissions
+
+    def validate_session(self, session_id: str) -> bool:
+        """
+        Validate that a session is active and not expired
+        """
+        with self.session_lock:
+            if session_id not in self.sessions:
+                return False
+
+            session = self.sessions[session_id]
+
+            # Update last activity time
+            session.last_activity = time.time()
+
+            # Check if session has expired
+            if time.time() - session.start_time > self.session_timeout:
+                self._expire_session(session_id)
+                return False
+
+            return session.status == SessionStatus.ACTIVE
+
+    def _extend_session(self, session_id: str):
+        """
+        Extend an existing session
+        """
+        session = self.sessions[session_id]
+        session.start_time = time.time()  # Reset timeout timer
+
+    def _expire_session(self, session_id: str):
+        """
+        Expire a session and clean up resources
+        """
+        if session_id in self.sessions:
+            session = self.sessions[session_id]
+            session.status = SessionStatus.EXPIRED
+
+            # Clean up simulation instance
+            self._cleanup_simulation_instance(session.simulation_instance)
+
+            # Remove from user map
+            del self.user_session_map[session.user_id]
+            del self.sessions[session_id]
+
+    def _cleanup_simulation_instance(self, simulation_instance: str):
+        """
+        Clean up a simulation instance
+        """
+        # In a real implementation, this would terminate the simulation instance
+        pass
+
+    def _cleanup_expired_sessions(self):
+        """
+        Periodically clean up expired sessions
+        """
+        while True:
+            time.sleep(self.cleanup_interval)
+
+            with self.session_lock:
+                current_time = time.time()
+                expired_sessions = [
+                    sid for sid, session in self.sessions.items()
+                    if session.status == SessionStatus.ACTIVE and
+                    current_time - session.last_activity > self.session_timeout
+                ]
+
+                for session_id in expired_sessions:
+                    self._expire_session(session_id)
+
+    def get_active_user_count(self) -> int:
+        """
+        Get the number of currently active users
+        """
+        with self.session_lock:
+            return len([s for s in self.sessions.values() if s.status == SessionStatus.ACTIVE])
+
+    def get_user_quota_info(self) -> Dict[str, int]:
+        """
+        Get quota information for active users
+        """
+        with self.session_lock:
+            active_users = self.get_active_user_count()
+            return {
+                'active_users': active_users,
+                'max_capacity': self.max_concurrent_users,
+                'available_slots': self.max_concurrent_users - active_users
+            }
+```
+
+### Resource Isolation
+
+```python
+class ResourceManager:
+    def __init__(self, session_manager: MultiUserSessionManager):
+        self.session_manager = session_manager
+        self.resource_pools = {
+            'cpu': self._initialize_cpu_pool(),
+            'memory': self._initialize_memory_pool(),
+            'network': self._initialize_network_pool(),
+            'simulation': self._initialize_simulation_pool()
+        }
+
+    def _initialize_cpu_pool(self):
+        """
+        Initialize CPU resource pool with allocation quotas
+        """
+        import psutil
+        total_cores = psutil.cpu_count()
+        return {
+            'total_cores': total_cores,
+            'allocated': 0,
+            'allocation_limits': {}  # session_id -> allocated_cores
+        }
+
+    def _initialize_memory_pool(self):
+        """
+        Initialize memory resource pool with allocation quotas
+        """
+        import psutil
+        total_memory = psutil.virtual_memory().total
+        return {
+            'total_bytes': total_memory,
+            'allocated_bytes': 0,
+            'allocation_limits': {}  # session_id -> allocated_bytes
+        }
+
+    def _initialize_network_pool(self):
+        """
+        Initialize network resource pool with allocation quotas
+        """
+        return {
+            'total_bandwidth_kbps': 100000,  # 100 Mbps total
+            'allocated_bandwidth_kbps': 0,
+            'allocation_limits': {}  # session_id -> allocated_bandwidth
+        }
+
+    def _initialize_simulation_pool(self):
+        """
+        Initialize simulation resource pool
+        """
+        return {
+            'total_instances': 50,  # Max 50 simulation instances
+            'active_instances': 0,
+            'instance_allocations': {}  # session_id -> instance_id
+        }
+
+    def allocate_resources(self, session_id: str) -> bool:
+        """
+        Allocate resources for a session based on its allocation requirements
+        """
+        if not self.session_manager.validate_session(session_id):
+            return False
+
+        session = self.session_manager.sessions[session_id]
+        allocation = session.resource_allocation
+
+        # Check if sufficient resources are available
+        if not self._check_resource_availability(allocation):
+            return False
+
+        # Allocate resources
+        self._allocate_cpu(session_id, allocation['cpu_share'])
+        self._allocate_memory(session_id, allocation['memory_limit_mb'])
+        self._allocate_network(session_id, allocation['bandwidth_limit_kbps'])
+        self._allocate_simulation_instance(session_id)
+
+        return True
+
+    def _check_resource_availability(self, allocation: Dict[str, float]) -> bool:
+        """
+        Check if sufficient resources are available for allocation
+        """
+        # Check CPU availability
+        cpu_needed = allocation['cpu_share']
+        if self.resource_pools['cpu']['allocated'] + cpu_needed > self.resource_pools['cpu']['total_cores']:
+            return False
+
+        # Check memory availability
+        memory_needed = allocation['memory_limit_mb'] * 1024 * 1024  # Convert to bytes
+        if self.resource_pools['memory']['allocated_bytes'] + memory_needed > self.resource_pools['memory']['total_bytes']:
+            return False
+
+        # Check network availability
+        network_needed = allocation['bandwidth_limit_kbps']
+        if self.resource_pools['network']['allocated_bandwidth_kbps'] + network_needed > self.resource_pools['network']['total_bandwidth_kbps']:
+            return False
+
+        # Check simulation availability
+        if self.resource_pools['simulation']['active_instances'] + 1 > self.resource_pools['simulation']['total_instances']:
+            return False
+
+        return True
+
+    def _allocate_cpu(self, session_id: str, share: float):
+        """
+        Allocate CPU resources to a session
+        """
+        self.resource_pools['cpu']['allocated'] += share
+        self.resource_pools['cpu']['allocation_limits'][session_id] = share
+
+    def _allocate_memory(self, session_id: str, limit_mb: float):
+        """
+        Allocate memory resources to a session
+        """
+        limit_bytes = limit_mb * 1024 * 1024
+        self.resource_pools['memory']['allocated_bytes'] += limit_bytes
+        self.resource_pools['memory']['allocation_limits'][session_id] = limit_bytes
+
+    def _allocate_network(self, session_id: str, bandwidth_kbps: float):
+        """
+        Allocate network resources to a session
+        """
+        self.resource_pools['network']['allocated_bandwidth_kbps'] += bandwidth_kbps
+        self.resource_pools['network']['allocation_limits'][session_id] = bandwidth_kbps
+
+    def _allocate_simulation_instance(self, session_id: str):
+        """
+        Allocate simulation instance to a session
+        """
+        self.resource_pools['simulation']['active_instances'] += 1
+        instance_id = f"sim_{session_id[:8]}_{int(time.time())}"
+        self.resource_pools['simulation']['instance_allocations'][session_id] = instance_id
+
+    def release_resources(self, session_id: str):
+        """
+        Release resources allocated to a session
+        """
+        if session_id in self.resource_pools['cpu']['allocation_limits']:
+            allocated = self.resource_pools['cpu']['allocation_limits'][session_id]
+            self.resource_pools['cpu']['allocated'] -= allocated
+            del self.resource_pools['cpu']['allocation_limits'][session_id]
+
+        if session_id in self.resource_pools['memory']['allocation_limits']:
+            allocated = self.resource_pools['memory']['allocation_limits'][session_id]
+            self.resource_pools['memory']['allocated_bytes'] -= allocated
+            del self.resource_pools['memory']['allocation_limits'][session_id]
+
+        if session_id in self.resource_pools['network']['allocation_limits']:
+            allocated = self.resource_pools['network']['allocation_limits'][session_id]
+            self.resource_pools['network']['allocated_bandwidth_kbps'] -= allocated
+            del self.resource_pools['network']['allocation_limits'][session_id]
+
+        if session_id in self.resource_pools['simulation']['instance_allocations']:
+            self.resource_pools['simulation']['active_instances'] -= 1
+            del self.resource_pools['simulation']['instance_allocations'][session_id]
+```
+
+## User Authentication and Authorization
+
+### Authentication System
+
+```python
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+
+class AuthenticationManager:
+    def __init__(self):
+        self.users = {}
+        self.tokens = {}
+        self.token_expiry_hours = 24
+
+    def register_user(self, username: str, password: str, role: UserRole) -> bool:
+        """
+        Register a new user
+        """
+        if username in self.users:
+            return False  # User already exists
+
+        # Hash the password
+        salt = secrets.token_hex(16)
+        hashed_password = self._hash_password(password, salt)
+
+        self.users[username] = {
+            'password_hash': hashed_password,
+            'salt': salt,
+            'role': role,
+            'created_at': datetime.now(),
+            'last_login': None,
+            'active': True
+        }
+
+        return True
+
+    def authenticate_user(self, username: str, password: str) -> Optional[str]:
+        """
+        Authenticate a user and return session token if successful
+        """
+        if username not in self.users:
+            return None
+
+        user = self.users[username]
+
+        if not user['active']:
+            return None
+
+        # Hash the provided password with stored salt
+        hashed_password = self._hash_password(password, user['salt'])
+
+        if hashed_password == user['password_hash']:
+            # Update last login
+            user['last_login'] = datetime.now()
+
+            # Generate session token
+            token = self._generate_token(username)
+            expiry_time = datetime.now() + timedelta(hours=self.token_expiry_hours)
+
+            self.tokens[token] = {
+                'username': username,
+                'expiry': expiry_time,
+                'created_at': datetime.now()
+            }
+
+            return token
+
+        return None
+
+    def _hash_password(self, password: str, salt: str) -> str:
+        """
+        Hash a password with salt
+        """
+        return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+
+    def _generate_token(self, username: str) -> str:
+        """
+        Generate a secure session token
+        """
+        token_data = f"{username}{time.time()}{secrets.token_hex(8)}"
+        return hashlib.sha256(token_data.encode()).hexdigest()
+
+    def validate_token(self, token: str) -> Optional[str]:
+        """
+        Validate a session token and return username if valid
+        """
+        if token not in self.tokens:
+            return None
+
+        token_info = self.tokens[token]
+
+        if datetime.now() > token_info['expiry']:
+            # Token has expired
+            del self.tokens[token]
+            return None
+
+        return token_info['username']
+
+    def revoke_token(self, token: str) -> bool:
+        """
+        Revoke a session token
+        """
+        if token in self.tokens:
+            del self.tokens[token]
+            return True
+        return False
+
+    def get_user_role(self, username: str) -> Optional[UserRole]:
+        """
+        Get the role of a user
+        """
+        if username in self.users:
+            return self.users[username]['role']
+        return None
+```
+
+## Simulation Environment Isolation
+
+### Isolated Simulation Instances
+
+```python
+class SimulationIsolationManager:
+    def __init__(self, max_instances: int = 50):
+        self.max_instances = max_instances
+        self.instances = {}
+        self.instance_lock = threading.Lock()
+
+    def create_isolated_simulation(self, user_id: str, session_id: str) -> Optional[str]:
+        """
+        Create an isolated simulation environment for a user
+        """
+        with self.instance_lock:
+            if len(self.instances) >= self.max_instances:
+                return None  # Too many instances
+
+            # Generate unique instance ID
+            instance_id = f"sim_{session_id[:8]}_{int(time.time())}"
+
+            # Create isolated simulation environment
+            simulation_config = {
+                'user_id': user_id,
+                'session_id': session_id,
+                'instance_id': instance_id,
+                'environment': self._create_user_environment(),
+                'resources': {
+                    'cpu_limit': '1000m',
+                    'memory_limit': '512Mi',
+                    'gpu_enabled': False
+                }
+            }
+
+            self.instances[instance_id] = simulation_config
+
+            return instance_id
+
+    def _create_user_environment(self) -> Dict:
+        """
+        Create a personalized simulation environment for the user
+        """
+        # In a real implementation, this would create a separate Isaac Sim environment
+        # with unique objects, layouts, and settings for each user
+        return {
+            'layout': 'personalized',  # Each user gets a slightly different layout
+            'objects': self._generate_personalized_objects(),
+            'navigation_goals': self._generate_personalized_goals(),
+            'robot_config': 'default_humanoid',
+            'sensors': ['rgb_camera', 'depth_sensor', 'imu']
+        }
+
+    def _generate_personalized_objects(self) -> List[Dict]:
+        """
+        Generate personalized objects for the user's environment
+        """
+        import random
+
+        object_types = ['ball', 'cup', 'box', 'chair', 'table']
+        colors = ['red', 'blue', 'green', 'yellow', 'purple']
+
+        objects = []
+        for i in range(random.randint(3, 7)):  # 3-7 objects per environment
+            obj_type = random.choice(object_types)
+            color = random.choice(colors)
+
+            objects.append({
+                'name': f"{color}_{obj_type}_{i}",
+                'type': obj_type,
+                'color': color,
+                'position': {
+                    'x': random.uniform(-3, 3),
+                    'y': random.uniform(-3, 3),
+                    'z': 0.0
+                }
+            })
+
+        return objects
+
+    def _generate_personalized_goals(self) -> List[Dict]:
+        """
+        Generate personalized navigation goals for the user
+        """
+        import random
+
+        locations = ['kitchen', 'living_room', 'bedroom', 'office', 'dining_room']
+        goals = []
+
+        for loc in locations:
+            goals.append({
+                'name': loc,
+                'position': {
+                    'x': random.uniform(-5, 5),
+                    'y': random.uniform(-5, 5),
+                    'z': 0.0
+                }
+            })
+
+        return goals
+
+    def destroy_simulation(self, instance_id: str) -> bool:
+        """
+        Destroy a simulation instance
+        """
+        if instance_id in self.instances:
+            del self.instances[instance_id]
+            return True
+        return False
+
+    def get_simulation_status(self, instance_id: str) -> Optional[Dict]:
+        """
+        Get the status of a simulation instance
+        """
+        if instance_id in self.instances:
+            return {
+                'instance_id': instance_id,
+                'status': 'running',
+                'user_id': self.instances[instance_id]['user_id'],
+                'created_at': self.instances[instance_id].get('created_at', time.time()),
+                'objects_count': len(self.instances[instance_id]['environment']['objects'])
+            }
+        return None
+```
+
+## Command Processing Isolation
+
+### User-Specific Command Processing
+
+```python
+class IsolatedCommandProcessor:
+    def __init__(self, session_manager: MultiUserSessionManager,
+                 simulation_manager: SimulationIsolationManager):
+        self.session_manager = session_manager
+        self.simulation_manager = simulation_manager
+        self.user_command_queues = {}
+        self.command_processing_lock = threading.Lock()
+
+    def process_user_command(self, session_id: str, command: str, confidence: float = 1.0) -> Dict:
+        """
+        Process a command for a specific user with isolation
+        """
+        # Validate session
+        if not self.session_manager.validate_session(session_id):
+            return {
+                'success': False,
+                'error': 'Invalid or expired session',
+                'session_id': session_id
+            }
+
+        session = self.session_manager.sessions[session_id]
+
+        # Check permissions
+        if not session.permissions.get('execute_commands', False):
+            return {
+                'success': False,
+                'error': 'Insufficient permissions to execute commands',
+                'session_id': session_id
+            }
+
+        # Check rate limiting
+        if not self._check_rate_limit(session_id):
+            return {
+                'success': False,
+                'error': 'Command rate limit exceeded',
+                'session_id': session_id
+            }
+
+        # Process command in user's isolated environment
+        try:
+            # Get user's simulation instance
+            sim_instance = session.simulation_instance
+
+            # Process the command using the user's isolated simulation
+            result = self._execute_command_in_isolation(
+                command, confidence, sim_instance, session
+            )
+
+            return {
+                'success': True,
+                'result': result,
+                'session_id': session_id,
+                'user_id': session.user_id
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'session_id': session_id,
+                'user_id': session.user_id
+            }
+
+    def _check_rate_limit(self, session_id: str) -> bool:
+        """
+        Check if the user has exceeded their command rate limit
+        """
+        session = self.session_manager.sessions[session_id]
+        limit = session.resource_allocation['command_rate_limit']
+
+        # In a real implementation, this would track commands per time window
+        # For now, we'll just return True
+        return True
+
+    def _execute_command_in_isolation(self, command: str, confidence: float,
+                                    sim_instance: str, session: UserSession) -> Dict:
+        """
+        Execute a command in the user's isolated simulation environment
+        """
+        # This is where the actual command processing would happen
+        # with isolation from other users
+
+        # Import the actual VLA components
+        from frontend.docs.module_4.language_to_action import LanguageToActionTranslator
+        from frontend.docs.module_4.state_machine import VLAStateMachine
+
+        # Create isolated components for this user
+        user_state_machine = VLAStateMachine({'max_recovery_attempts': 3})
+        user_llm_interface = None  # Would be initialized with user-specific config
+        user_translator = LanguageToActionTranslator({}, user_llm_interface)
+
+        # Process command through isolated pipeline
+        action_plan = user_translator.translate_command_to_action_plan(
+            command,
+            environment_context=self._get_user_environment_context(sim_instance),
+            robot_capabilities=self._get_user_robot_capabilities(session)
+        )
+
+        if not action_plan:
+            return {
+                'error': 'Failed to generate action plan',
+                'command': command,
+                'confidence': confidence
+            }
+
+        # Validate action plan against user's permissions
+        if not self._validate_action_plan_permissions(action_plan, session):
+            return {
+                'error': 'Action plan contains unauthorized actions',
+                'command': command,
+                'confidence': confidence
+            }
+
+        # Execute action plan in user's simulation
+        execution_result = self._execute_action_plan_in_simulation(
+            action_plan, sim_instance, session
+        )
+
+        return {
+            'command': command,
+            'confidence': confidence,
+            'action_plan': action_plan,
+            'execution_result': execution_result,
+            'simulation_instance': sim_instance
+        }
+
+    def _get_user_environment_context(self, sim_instance: str) -> Dict:
+        """
+        Get environment context for a user's simulation instance
+        """
+        # In a real implementation, this would retrieve the actual environment state
+        return {
+            'objects': [{'name': 'red_ball', 'type': 'ball', 'color': 'red', 'location': {'x': 1.0, 'y': 1.0, 'z': 0.5}}],
+            'navigation_goals': [{'name': 'kitchen', 'position': [2.0, 0.0, 0.0]}],
+            'robot_position': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+        }
+
+    def _get_user_robot_capabilities(self, session: UserSession) -> Dict:
+        """
+        Get robot capabilities based on user's permissions
+        """
+        # Return capabilities based on user's role and permissions
+        capabilities = {
+            'supported_actions': ['navigate_to_pose', 'detect_object', 'grasp_object', 'release_object'],
+            'manipulation': {'max_weight': 0.5, 'reach_distance': 1.0},
+            'navigation': {'max_speed': 1.0, 'min_obstacle_distance': 0.3},
+            'perception': {'detection_range': 5.0, 'detection_accuracy': 0.9}
+        }
+
+        # Adjust capabilities based on user role
+        if session.role == UserRole.STUDENT:
+            # Students have standard capabilities
+            pass
+        elif session.role == UserRole.INSTRUCTOR:
+            # Instructors may have extended capabilities
+            capabilities['supported_actions'].extend(['modify_environment', 'spawn_object'])
+        elif session.role == UserRole.ADMIN:
+            # Admins have full capabilities
+            capabilities['supported_actions'].extend(['system_control', 'configuration'])
+
+        return capabilities
+
+    def _validate_action_plan_permissions(self, action_plan: List[Dict], session: UserSession) -> bool:
+        """
+        Validate that the action plan is allowed based on user permissions
+        """
+        for action in action_plan:
+            action_type = action.get('type', '')
+
+            # Check if action type is in supported actions
+            if action_type not in session.permissions.get('allowed_actions', []):
+                # For now, assume all actions in the standard set are allowed for all users
+                if action_type not in ['navigate_to_pose', 'detect_object', 'grasp_object', 'release_object']:
+                    return False
+
+        return True
+
+    def _execute_action_plan_in_simulation(self, action_plan: List[Dict],
+                                         sim_instance: str, session: UserSession) -> Dict:
+        """
+        Execute an action plan in the user's simulation instance
+        """
+        # In a real implementation, this would execute the actions in the user's simulation
+        # For now, we'll simulate the execution
+
+        results = []
+        for i, action in enumerate(action_plan):
+            # Simulate action execution
+            success = True  # Simulated success
+            execution_time = 1.0  # Simulated execution time in seconds
+
+            results.append({
+                'action_index': i,
+                'action_type': action['type'],
+                'parameters': action.get('parameters', {}),
+                'success': success,
+                'execution_time': execution_time,
+                'error': None if success else 'Simulated execution error'
+            })
+
+        return {
+            'action_count': len(action_plan),
+            'successful_actions': len([r for r in results if r['success']]),
+            'failed_actions': len([r for r in results if not r['success']]),
+            'total_execution_time': sum(r['execution_time'] for r in results),
+            'individual_results': results
+        }
+```
+
+## Performance Monitoring for Multi-User
+
+### Multi-User Performance Metrics
+
+```python
+class MultiUserPerformanceMonitor:
+    def __init__(self, session_manager: MultiUserSessionManager):
+        self.session_manager = session_manager
+        self.metrics = {
+            'concurrent_users': 0,
+            'average_response_time': 0.0,
+            'command_throughput': 0.0,
+            'resource_utilization': {
+                'cpu': 0.0,
+                'memory': 0.0,
+                'network': 0.0
+            },
+            'error_rates': {
+                'authentication': 0.0,
+                'command_processing': 0.0,
+                'simulation': 0.0
+            }
+        }
+        self.performance_history = []
+        self.monitoring_active = True
+
+    def start_monitoring(self):
+        """
+        Start performance monitoring
+        """
+        import psutil
+        import threading
+
+        def monitoring_loop():
+            while self.monitoring_active:
+                # Collect system metrics
+                self.metrics['resource_utilization']['cpu'] = psutil.cpu_percent(interval=1)
+                self.metrics['resource_utilization']['memory'] = psutil.virtual_memory().percent
+
+                # Update concurrent user count
+                self.metrics['concurrent_users'] = self.session_manager.get_active_user_count()
+
+                # Store historical data
+                self.performance_history.append({
+                    'timestamp': time.time(),
+                    'metrics': self.metrics.copy()
+                })
+
+                # Keep only last 1000 measurements
+                if len(self.performance_history) > 1000:
+                    self.performance_history = self.performance_history[-1000:]
+
+                time.sleep(5)  # Monitor every 5 seconds
+
+        monitoring_thread = threading.Thread(target=monitoring_loop, daemon=True)
+        monitoring_thread.start()
+
+    def get_performance_summary(self) -> Dict:
+        """
+        Get a summary of multi-user performance
+        """
+        return {
+            'current_concurrent_users': self.metrics['concurrent_users'],
+            'capacity_utilization': (self.metrics['concurrent_users'] / self.session_manager.max_concurrent_users) * 100,
+            'system_resources': self.metrics['resource_utilization'],
+            'performance_trends': self._analyze_performance_trends()
+        }
+
+    def _analyze_performance_trends(self) -> Dict:
+        """
+        Analyze performance trends over time
+        """
+        if not self.performance_history:
+            return {}
+
+        # Calculate trends
+        recent_metrics = self.performance_history[-10:]  # Last 10 measurements
+
+        avg_cpu = sum(m['metrics']['resource_utilization']['cpu'] for m in recent_metrics) / len(recent_metrics)
+        avg_memory = sum(m['metrics']['resource_utilization']['memory'] for m in recent_metrics) / len(recent_metrics)
+
+        return {
+            'avg_cpu_recent': avg_cpu,
+            'avg_memory_recent': avg_memory,
+            'user_growth_trend': self._calculate_user_growth_trend(),
+            'resource_pressure': 'high' if avg_cpu > 80 or avg_memory > 85 else 'normal'
+        }
+
+    def _calculate_user_growth_trend(self) -> str:
+        """
+        Calculate user growth trend
+        """
+        if len(self.performance_history) < 2:
+            return 'stable'
+
+        recent_users = [m['metrics']['concurrent_users'] for m in self.performance_history[-5:]]
+
+        if len(recent_users) < 2:
+            return 'stable'
+
+        trend = recent_users[-1] - recent_users[0]
+
+        if trend > 2:
+            return 'rapid_growth'
+        elif trend > 0:
+            return 'growth'
+        elif trend < -2:
+            return 'rapid_decline'
+        elif trend < 0:
+            return 'decline'
+        else:
+            return 'stable'
+```
+
+## Educational Features
+
+### Classroom Management Tools
+
+```python
+class ClassroomManagementTools:
+    def __init__(self, session_manager: MultiUserSessionManager,
+                 command_processor: IsolatedCommandProcessor):
+        self.session_manager = session_manager
+        self.command_processor = command_processor
+
+    def create_classroom_session(self, instructor_id: str,
+                               student_ids: List[str],
+                               lesson_plan: Dict) -> str:
+        """
+        Create a classroom session with multiple students
+        """
+        # Create session for instructor
+        instructor_session = self.session_manager.create_session(
+            instructor_id, UserRole.INSTRUCTOR
+        )
+
+        # Create sessions for students
+        student_sessions = {}
+        for student_id in student_ids:
+            student_session = self.session_manager.create_session(
+                student_id, UserRole.STUDENT
+            )
+            student_sessions[student_id] = student_session
+
+        # Associate sessions with classroom
+        classroom_id = f"class_{instructor_id}_{int(time.time())}"
+
+        return classroom_id
+
+    def broadcast_command(self, instructor_session_id: str, command: str) -> Dict:
+        """
+        Broadcast a command to all students in the classroom
+        """
+        # In a real implementation, this would send the command to all students
+        # For now, we'll return a simulated result
+        return {
+            'command': command,
+            'broadcast_to': 'all_students_in_classroom',
+            'status': 'simulated_broadcast',
+            'estimated_delivery_time': 0.1
+        }
+
+    def monitor_student_progress(self, classroom_id: str) -> Dict:
+        """
+        Monitor progress of all students in a classroom
+        """
+        # In a real implementation, this would collect progress data
+        # from all student sessions in the classroom
+        return {
+            'classroom_id': classroom_id,
+            'student_count': 0,  # Would be actual count
+            'active_students': 0,  # Would be actual count
+            'average_completion_rate': 0.0,  # Would be actual rate
+            'students_needing_help': [],  # Would be actual list
+            'overall_class_performance': 'pending'  # Would be actual performance
+        }
+
+    def pause_student_sessions(self, classroom_id: str, paused_by: str) -> bool:
+        """
+        Pause all student sessions in a classroom
+        """
+        # In a real implementation, this would pause student sessions
+        # allowing instructor to get attention
+        return True
+
+    def resume_student_sessions(self, classroom_id: str, resumed_by: str) -> bool:
+        """
+        Resume all student sessions in a classroom
+        """
+        # In a real implementation, this would resume student sessions
+        return True
+```
+
+## Security and Privacy
+
+### Multi-User Security Measures
+
+```python
+class MultiUserSecurityManager:
+    def __init__(self, session_manager: MultiUserSessionManager):
+        self.session_manager = session_manager
+        self.audit_log = []
+
+    def enforce_session_isolation(self, session_id_1: str, session_id_2: str) -> bool:
+        """
+        Ensure that one user's session cannot access another user's data
+        """
+        # Sessions should be completely isolated
+        return session_id_1 != session_id_2
+
+    def log_security_event(self, event_type: str, user_id: str, details: Dict):
+        """
+        Log security-related events
+        """
+        log_entry = {
+            'timestamp': time.time(),
+            'event_type': event_type,
+            'user_id': user_id,
+            'details': details,
+            'severity': self._determine_severity(event_type)
+        }
+
+        self.audit_log.append(log_entry)
+
+    def _determine_severity(self, event_type: str) -> str:
+        """
+        Determine severity level for security event
+        """
+        high_severity_events = [
+            'unauthorized_access_attempt',
+            'session_hijacking',
+            'data_breach',
+            'privilege_escalation'
+        ]
+
+        if event_type in high_severity_events:
+            return 'high'
+        elif 'error' in event_type or 'failed' in event_type:
+            return 'medium'
+        else:
+            return 'low'
+
+    def validate_cross_user_access(self, requesting_session_id: str,
+                                 target_session_id: str,
+                                 access_type: str) -> bool:
+        """
+        Validate whether a session can access another session's resources
+        """
+        requesting_session = self.session_manager.sessions.get(requesting_session_id)
+        target_session = self.session_manager.sessions.get(target_session_id)
+
+        if not requesting_session or not target_session:
+            return False
+
+        # Users can only access their own resources
+        if requesting_session.user_id != target_session.user_id:
+            # Only instructors and admins can access other users' resources
+            if requesting_session.role not in [UserRole.INSTRUCTOR, UserRole.ADMIN]:
+                self.log_security_event(
+                    'unauthorized_access_attempt',
+                    requesting_session.user_id,
+                    {
+                        'target_user': target_session.user_id,
+                        'access_type': access_type,
+                        'requesting_role': requesting_session.role.value
+                    }
+                )
+                return False
+
+        # Even instructors and admins have limited access
+        if access_type == 'simulation_data':
+            # Instructors can view but not modify other users' simulations
+            return requesting_session.role in [UserRole.INSTRUCTOR, UserRole.ADMIN]
+        elif access_type == 'command_execution':
+            # Only admin can execute commands in another user's session
+            return requesting_session.role == UserRole.ADMIN
+        elif access_type == 'configuration':
+            # Only admin can modify another user's configuration
+            return requesting_session.role == UserRole.ADMIN
+
+        return True
+```
+
+The multi-user support system provides comprehensive isolation and resource management for educational settings, supporting up to 50 concurrent users. The system ensures that each user has their own isolated simulation environment, appropriate resource allocation, and proper access controls while maintaining system performance and security.

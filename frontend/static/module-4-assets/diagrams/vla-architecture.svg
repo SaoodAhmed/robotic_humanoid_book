@@ -1,0 +1,130 @@
+<svg width="1000" height="800" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .component { fill: #e3f2fd; stroke: #1976d2; stroke-width: 2; rx: 10; ry: 10; }
+    .interface { fill: #fff3e0; stroke: #ef6c00; stroke-width: 2; rx: 10; ry: 10; }
+    .data { fill: #e8f5e9; stroke: #388e3c; stroke-width: 2; rx: 10; ry: 10; }
+    .flow { stroke: #666; stroke-width: 2; marker-end: url(#arrowhead); }
+    .label { font-family: Arial, sans-serif; font-size: 14px; text-anchor: middle; }
+    .title { font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; text-anchor: middle; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+    </marker>
+  </defs>
+
+  <text x="500" y="30" class="title">Vision-Language-Action (VLA) System Architecture</text>
+
+  <!-- Left column: Input Components -->
+  <rect x="50" y="100" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="150" y="140" class="label">Voice Input</text>
+  <text x="150" y="160" class="label">(Microphone)</text>
+
+  <rect x="50" y="220" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="150" y="250" class="label">Camera Input</text>
+  <text x="150" y="270" class="label">(RGB-D Sensor)</text>
+
+  <rect x="50" y="340" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="150" y="370" class="label">Robot State</text>
+  <text x="150" y="390" class="label">(Odometry, Joint States)</text>
+
+  <!-- Center column: Processing Components -->
+  <rect x="400" y="80" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="500" y="110" class="label">Voice Activity</text>
+  <text x="500" y="130" class="label">Detection</text>
+
+  <rect x="400" y="180" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="500" y="210" class="label">Automatic Speech</text>
+  <text x="500" y="230" class="label">Recognition (ASR)</text>
+
+  <rect x="400" y="280" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="500" y="310" class="label">Large Language</text>
+  <text x="500" y="330" class="label">Model (LLM)</text>
+
+  <rect x="400" y="380" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="500" y="410" class="label">Action Planning</text>
+  <text x="500" y="430" class="label">&amp; Sequencing</text>
+
+  <rect x="400" y="480" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="500" y="510" class="label">ROS 2 Action</text>
+  <text x="500" y="530" class="label">Execution</text>
+
+  <!-- Right column: Output Components -->
+  <rect x="750" y="180" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="850" y="210" class="label">Isaac Sim</text>
+  <text x="850" y="230" class="label">Environment</text>
+
+  <rect x="750" y="300" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="850" y="330" class="label">Navigation</text>
+  <text x="850" y="350" class="label">Stack (Nav2)</text>
+
+  <rect x="750" y="420" width="200" height="80" class="component" rx="10" ry="10"/>
+  <text x="850" y="450" class="label">Manipulation</text>
+  <text x="850" y="470" class="label">Controllers</text>
+
+  <!-- Data stores -->
+  <rect x="400" y="580" width="200" height="60" class="data" rx="10" ry="10"/>
+  <text x="500" y="610" class="label">Action Libraries</text>
+
+  <!-- Interfaces -->
+  <rect x="270" y="120" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="325" y="145" class="label">Wake Word</text>
+
+  <rect x="270" y="240" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="325" y="265" class="label">STT Input</text>
+
+  <rect x="620" y="200" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="675" y="225" class="label">Text Query</text>
+
+  <rect x="620" y="300" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="675" y="325" class="label">Plan Request</text>
+
+  <rect x="620" y="400" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="675" y="425" class="label">Action Plan</text>
+
+  <rect x="620" y="500" width="110" height="40" class="interface" rx="5" ry="5"/>
+  <text x="675" y="525" class="label">ROS Actions</text>
+
+  <!-- Data flows -->
+  <line x1="250" y1="140" x2="400" y2="120" class="flow"/>
+  <line x1="250" y1="260" x2="400" y2="220" class="flow"/>
+  <line x1="400" y1="160" x2="400" y2="200" class="flow"/>
+  <line x1="400" y1="260" x2="400" y2="300" class="flow"/>
+  <line x1="400" y1="360" x2="400" y2="400" class="flow"/>
+  <line x1="400" y1="460" x2="400" y2="500" class="flow"/>
+  <line x1="600" y1="120" x2="750" y2="220" class="flow"/>
+  <line x1="600" y1="320" x2="750" y2="340" class="flow"/>
+  <line x1="600" y1="520" x2="750" y2="460" class="flow"/>
+  <line x1="500" y1="560" x2="500" y2="580" class="flow"/>
+  <line x1="500" y1="640" x2="500" y2="660" class="flow"/>
+  <line x1="500" y1="660" x2="250" y2="380" class="flow"/>
+
+  <!-- Labels for flows -->
+  <text x="330" y="110" class="label">Audio Stream</text>
+  <text x="330" y="230" class="label">Audio Data</text>
+  <text x="420" y="180" class="label">Activation</text>
+  <text x="420" y="280" class="label">Transcript</text>
+  <text x="420" y="380" class="label">Command</text>
+  <text x="420" y="480" class="label">Plan</text>
+  <text x="520" y="550" class="label">Actions</text>
+  <text x="650" y="250" class="label">Processed Text</text>
+  <text x="650" y="350" class="label">Context</text>
+  <text x="650" y="450" class="label">Sequence</text>
+  <text x="650" y="550" class="label">ROS Commands</text>
+  <text x="520" y="650" class="label">Action Libs</text>
+  <text x="370" y="500" class="label">Robot State</text>
+
+  <!-- Legends -->
+  <rect x="50" y="650" width="250" height="120" fill="none" stroke="#ccc"/>
+  <text x="60" y="670" font-size="12" font-weight="bold">Legend:</text>
+  <rect x="60" y="680" width="20" height="10" class="component" rx="2" ry="2"/>
+  <text x="85" y="690" font-size="10">Processing Component</text>
+  <rect x="60" y="700" width="20" height="10" class="interface" rx="2" ry="2"/>
+  <text x="85" y="710" font-size="10">Interface/API</text>
+  <rect x="60" y="720" width="20" height="10" class="data" rx="2" ry="2"/>
+  <text x="85" y="730" font-size="10">Data Store</text>
+
+  <!-- System boundary -->
+  <rect x="30" y="70" width="940" height="620" fill="none" stroke="#999" stroke-dasharray="5,5" stroke-width="1"/>
+  <text x="500" y="700" font-size="14" font-weight="bold">VLA System Boundary</text>
+</svg>

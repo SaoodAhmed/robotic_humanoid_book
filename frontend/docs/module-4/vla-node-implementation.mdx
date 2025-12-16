@@ -1,0 +1,256 @@
+---
+sidebar_position: 3
+---
+
+# VLA Node Implementation
+
+## Overview
+This document provides the skeleton implementation for the Vision-Language-Action (VLA) node, which serves as the central component coordinating voice input, LLM processing, and action execution in the simulation.
+
+## Architecture
+The VLA node follows a modular architecture with distinct components for each major function:
+
+1. **Voice Input Handler**: Processes speech recognition and command validation
+2. **LLM Interface**: Communicates with OpenAI API for action planning
+3. **State Manager**: Maintains system state and handles transitions
+4. **Action Executor**: Coordinates ROS 2 action execution in simulation
+5. **Error Handler**: Manages recovery from failures
+
+## Basic Structure
+
+```python
+#!/usr/bin/env python3
+
+import rospy
+import speech_recognition as sr
+import openai
+import json
+import threading
+from std_msgs.msg import String
+from actionlib_msgs.msg import GoalID
+from enum import Enum
+
+class VLAState(Enum):
+    IDLE = "idle"
+    LISTENING = "listening"
+    PROCESSING = "processing"
+    PLANNING = "planning"
+    EXECUTING = "executing"
+    ERROR = "error"
+    RECOVERY = "recovery"
+
+class VLANode:
+    def __init__(self):
+        rospy.init_node('vla_node')
+
+        # Load configuration
+        self.config = self.load_config()
+
+        # Initialize components
+        self.recognizer = sr.Recognizer()
+        self.microphone = sr.Microphone()
+        self.state = VLAState.IDLE
+        self.active_plan_id = None
+        self.last_error = None
+        self.recovery_attempts = 0
+
+        # Set up ROS publishers and subscribers
+        self.voice_command_pub = rospy.Publisher('/vla/voice_command', String, queue_size=10)
+        self.action_plan_pub = rospy.Publisher('/vla/action_plan', GoalID, queue_size=10)
+        self.state_pub = rospy.Publisher('/vla/state', String, queue_size=10)  # Using String for simplicity in this skeleton
+        self.voice_command_sub = rospy.Subscriber('/vla/command', String, self.command_callback)
+
+        # Configure speech recognition
+        self.setup_speech_recognition()
+
+        # Initialize OpenAI API
+        self.setup_llm_interface()
+
+        rospy.loginfo("VLA Node initialized")
+
+    def load_config(self):
+        """Load configuration from config file"""
+        with open('frontend/static/module-4-assets/configs/config.json', 'r') as f:
+            return json.load(f)['vla_system']
+
+    def setup_speech_recognition(self):
+        """Configure speech recognition parameters"""
+        self.recognizer.energy_threshold = 4000
+        self.recognizer.dynamic_energy_threshold = True
+        self.recognizer.pause_threshold = 0.8
+
+        # Adjust for ambient noise
+        with self.microphone as source:
+            self.recognizer.adjust_for_ambient_noise(source)
+
+    def setup_llm_interface(self):
+        """Configure OpenAI API interface"""
+        openai.api_key = self.config.get('openai_api_key', '')
+
+    def command_callback(self, msg):
+        """Handle incoming voice commands"""
+        if self.state == VLAState.IDLE:
+            self.process_voice_command(msg.data)
+
+    def process_voice_command(self, command_text):
+        """Process a voice command through the VLA pipeline"""
+        rospy.loginfo(f"Processing command: {command_text}")
+
+        # Update state
+        self.update_state(VLAState.PROCESSING)
+
+        # Validate command
+        if not self.validate_command(command_text):
+            rospy.logerr("Command validation failed")
+            self.handle_error("Invalid command")
+            return
+
+        # Generate action plan using LLM
+        action_plan = self.generate_action_plan(command_text)
+        if not action_plan:
+            rospy.logerr("Failed to generate action plan")
+            self.handle_error("Failed to generate action plan")
+            return
+
+        # Execute action plan
+        self.execute_action_plan(action_plan)
+
+    def validate_command(self, command_text):
+        """Validate the voice command"""
+        # Check if command is empty
+        if not command_text.strip():
+            return False
+
+        # Check command length
+        if len(command_text.strip()) < 3:
+            return False
+
+        return True
+
+    def generate_action_plan(self, command_text):
+        """Generate action plan using LLM"""
+        try:
+            # Create a prompt for the LLM
+            prompt = f"""
+            Convert the following natural language command into a sequence of ROS 2 actions:
+            Command: "{command_text}"
+
+            Respond with a JSON array of actions. Each action should be an object with 'type' and 'parameters'.
+            Example actions: navigate_to_pose, detect_object, grasp_object, release_object, etc.
+            """
+
+            response = openai.ChatCompletion.create(
+                model=self.config['openai_model'],
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+
+            # Parse the response
+            plan_text = response.choices[0].message['content']
+            # Extract JSON from response (in a real implementation, we'd use proper parsing)
+            import re
+            json_match = re.search(r'\[.*\]', plan_text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                return None
+
+        except Exception as e:
+            rospy.logerr(f"Error generating action plan: {e}")
+            return None
+
+    def execute_action_plan(self, action_plan):
+        """Execute the generated action plan"""
+        self.update_state(VLAState.EXECUTING)
+
+        # In a real implementation, this would coordinate with ROS 2 action servers
+        # For this skeleton, we'll just simulate execution
+
+        for action in action_plan:
+            rospy.loginfo(f"Executing action: {action}")
+            # In real implementation, this would call appropriate ROS 2 action servers
+            # based on action type and parameters
+
+            # Simulate action execution
+            rospy.sleep(1)  # Simulate time for action execution
+
+        # Plan completed successfully
+        self.update_state(VLAState.IDLE)
+
+    def update_state(self, new_state):
+        """Update the VLA system state"""
+        old_state = self.state
+        self.state = new_state
+
+        # Log state change
+        rospy.loginfo(f"State transition: {old_state.value} -> {new_state.value}")
+
+        # Publish state update
+        state_msg = String()
+        state_msg.data = json.dumps({
+            'current_state': self.state.value,
+            'active_plan_id': self.active_plan_id,
+            'last_error': self.last_error,
+            'recovery_attempts': self.recovery_attempts
+        })
+        self.state_pub.publish(state_msg)
+
+    def handle_error(self, error_msg):
+        """Handle errors and transition to error state"""
+        self.last_error = error_msg
+        self.update_state(VLAState.ERROR)
+
+        # Attempt recovery
+        self.attempt_recovery()
+
+    def attempt_recovery(self):
+        """Attempt to recover from an error state"""
+        if self.recovery_attempts < self.config['max_recovery_attempts']:
+            self.recovery_attempts += 1
+            rospy.loginfo(f"Attempting recovery (attempt {self.recovery_attempts})")
+
+            self.update_state(VLAState.RECOVERY)
+
+            # In a real implementation, recovery logic would go here
+            rospy.sleep(2)  # Simulate recovery time
+
+            # Reset error and return to idle
+            self.last_error = None
+            self.update_state(VLAState.IDLE)
+        else:
+            rospy.logerr("Max recovery attempts reached, staying in error state")
+            # In a real system, we might notify the user or wait for manual intervention
+
+    def run(self):
+        """Run the VLA node"""
+        rospy.loginfo("VLA Node running...")
+        rospy.spin()
+
+if __name__ == '__main__':
+    try:
+        vla_node = VLANode()
+        vla_node.run()
+    except rospy.ROSInterruptException:
+        rospy.loginfo("VLA Node terminated")
+```
+
+## Key Components
+
+### State Management
+The VLA node implements a finite state machine with the following states:
+- IDLE: Awaiting voice command
+- LISTENING: Capturing audio input
+- PROCESSING: Converting speech to text
+- PLANNING: Generating action sequence from LLM
+- EXECUTING: Running action sequence in simulation
+- ERROR: Error occurred, awaiting recovery decision
+- RECOVERY: Attempting to recover from error
+
+### ROS 2 Integration
+The node subscribes to `/vla/command` topic for voice commands and publishes to:
+- `/vla/voice_command`: Processed voice commands
+- `/vla/action_plan`: Action plans for execution
+- `/vla/state`: Current system state
+
+### Error Handling
+The system includes robust error handling with recovery mechanisms that attempt to reset the system state after failures.

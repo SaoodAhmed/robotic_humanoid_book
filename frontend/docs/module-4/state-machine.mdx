@@ -1,0 +1,342 @@
+---
+sidebar_position: 7
+---
+
+# State Machine Implementation
+
+## Overview
+This document describes the implementation of the autonomy state machine for the Vision-Language-Action (VLA) system. The state machine manages the system's behavior through different operational modes and handles transitions between states based on events and conditions.
+
+## State Definitions
+
+### Core States
+The VLA system operates in one of the following states:
+
+1. **IDLE**: Awaiting voice command
+2. **LISTENING**: Capturing audio input
+3. **PROCESSING**: Converting speech to text
+4. **PLANNING**: Generating action sequence from LLM
+5. **EXECUTING**: Running action sequence in simulation
+6. **ERROR**: Error occurred, awaiting recovery decision
+7. **RECOVERY**: Attempting to recover from error
+
+## State Machine Implementation
+
+```python
+from enum import Enum
+from typing import Optional, Callable, Dict, Any
+import logging
+import time
+from dataclasses import dataclass
+
+class VLAState(Enum):
+    IDLE = "idle"
+    LISTENING = "listening"
+    PROCESSING = "processing"
+    PLANNING = "planning"
+    EXECUTING = "executing"
+    ERROR = "error"
+    RECOVERY = "recovery"
+
+@dataclass
+class StateTransition:
+    from_state: VLAState
+    to_state: VLAState
+    event: str
+    condition: Optional[Callable] = None
+
+class VLAStateMachine:
+    def __init__(self, config):
+        self.config = config
+        self.current_state = VLAState.IDLE
+        self.active_plan_id = None
+        self.last_error = None
+        self.recovery_attempts = 0
+        self.state_entry_time = time.time()
+
+        # Callbacks for state changes
+        self.state_change_callbacks: Dict[VLAState, Callable] = {}
+
+        # Initialize valid transitions
+        self.valid_transitions = self._define_transitions()
+
+        logging.info(f"VLA State Machine initialized in {self.current_state.value} state")
+
+    def _define_transitions(self) -> Dict[VLAState, list]:
+        """
+        Define valid state transitions
+        """
+        return {
+            VLAState.IDLE: [VLAState.LISTENING, VLAState.ERROR],
+            VLAState.LISTENING: [VLAState.PROCESSING, VLAState.IDLE],
+            VLAState.PROCESSING: [VLAState.PLANNING, VLAState.IDLE, VLAState.ERROR],
+            VLAState.PLANNING: [VLAState.EXECUTING, VLAState.ERROR],
+            VLAState.EXECUTING: [VLAState.IDLE, VLAState.ERROR],
+            VLAState.ERROR: [VLAState.RECOVERY, VLAState.IDLE],
+            VLAState.RECOVERY: [VLAState.IDLE, VLAState.ERROR]
+        }
+
+    def is_transition_valid(self, target_state: VLAState) -> bool:
+        """
+        Check if a state transition is valid
+        """
+        valid_targets = self.valid_transitions.get(self.current_state, [])
+        return target_state in valid_targets
+
+    def transition_to(self, new_state: VLAState, reason: str = "") -> bool:
+        """
+        Transition to a new state if valid
+        """
+        if not self.is_transition_valid(new_state):
+            logging.warning(f"Invalid state transition from {self.current_state.value} to {new_state.value}")
+            return False
+
+        old_state = self.current_state
+        self.current_state = new_state
+        self.state_entry_time = time.time()
+
+        logging.info(f"State transition: {old_state.value} -> {new_state.value} ({reason})")
+
+        # Execute any registered callbacks for the new state
+        if new_state in self.state_change_callbacks:
+            try:
+                self.state_change_callbacks[new_state](old_state, new_state)
+            except Exception as e:
+                logging.error(f"Error in state change callback: {e}")
+
+        return True
+
+    def register_state_callback(self, state: VLAState, callback: Callable):
+        """
+        Register a callback function for when entering a specific state
+        """
+        self.state_change_callbacks[state] = callback
+
+    def get_current_state_info(self) -> Dict[str, Any]:
+        """
+        Get information about the current state
+        """
+        return {
+            'current_state': self.current_state.value,
+            'active_plan_id': self.active_plan_id,
+            'last_error': self.last_error,
+            'recovery_attempts': self.recovery_attempts,
+            'state_entry_time': self.state_entry_time,
+            'time_in_state': time.time() - self.state_entry_time
+        }
+
+    def handle_voice_activation(self):
+        """
+        Handle voice activation event
+        """
+        if self.current_state == VLAState.IDLE:
+            self.transition_to(VLAState.LISTENING, "voice activation detected")
+            return True
+        return False
+
+    def handle_audio_capture_complete(self):
+        """
+        Handle completion of audio capture
+        """
+        if self.current_state == VLAState.LISTENING:
+            self.transition_to(VLAState.PROCESSING, "audio capture complete")
+            return True
+        return False
+
+    def handle_speech_to_text_success(self):
+        """
+        Handle successful speech-to-text conversion
+        """
+        if self.current_state == VLAState.PROCESSING:
+            self.transition_to(VLAState.PLANNING, "speech-to-text successful")
+            return True
+        return False
+
+    def handle_speech_to_text_failure(self):
+        """
+        Handle speech-to-text conversion failure
+        """
+        if self.current_state == VLAState.PROCESSING:
+            self.transition_to(VLAState.IDLE, "speech-to-text failed")
+            return True
+        return False
+
+    def handle_plan_generation_success(self):
+        """
+        Handle successful action plan generation
+        """
+        if self.current_state == VLAState.PLANNING:
+            self.transition_to(VLAState.EXECUTING, "action plan generated successfully")
+            return True
+        return False
+
+    def handle_plan_generation_failure(self):
+        """
+        Handle action plan generation failure
+        """
+        if self.current_state == VLAState.PLANNING:
+            self.transition_to(VLAState.ERROR, "action plan generation failed")
+            return True
+        return False
+
+    def handle_action_execution_complete(self):
+        """
+        Handle completion of action execution
+        """
+        if self.current_state == VLAState.EXECUTING:
+            self.transition_to(VLAState.IDLE, "action sequence completed successfully")
+            return True
+        return False
+
+    def handle_action_execution_failure(self):
+        """
+        Handle action execution failure
+        """
+        if self.current_state == VLAState.EXECUTING:
+            self.transition_to(VLAState.ERROR, "action in sequence failed")
+            return True
+        return False
+
+    def handle_error_occurred(self, error_msg: str):
+        """
+        Handle error occurrence
+        """
+        self.last_error = error_msg
+        self.transition_to(VLAState.ERROR, f"error occurred: {error_msg}")
+        return True
+
+    def handle_recovery_initiated(self):
+        """
+        Handle recovery attempt initiation
+        """
+        if self.current_state == VLAState.ERROR:
+            self.recovery_attempts += 1
+            self.transition_to(VLAState.RECOVERY, "recovery attempt initiated")
+            return True
+        return False
+
+    def handle_recovery_cancelled(self):
+        """
+        Handle recovery cancellation
+        """
+        if self.current_state == VLAState.ERROR:
+            self.transition_to(VLAState.IDLE, "recovery cancelled")
+            return True
+        return False
+
+    def handle_recovery_success(self):
+        """
+        Handle successful recovery
+        """
+        if self.current_state == VLAState.RECOVERY:
+            self.last_error = None
+            self.transition_to(VLAState.IDLE, "recovery successful")
+            return True
+        return False
+
+    def handle_recovery_failure(self):
+        """
+        Handle recovery failure
+        """
+        if self.current_state == VLAState.RECOVERY:
+            self.transition_to(VLAState.ERROR, "recovery failed")
+            return True
+        return False
+
+    def reset_recovery_attempts(self):
+        """
+        Reset recovery attempt counter
+        """
+        self.recovery_attempts = 0
+        logging.info("Recovery attempts reset")
+
+    def can_attempt_recovery(self) -> bool:
+        """
+        Check if recovery can be attempted
+        """
+        return self.recovery_attempts < self.config.get('max_recovery_attempts', 3)
+
+    def get_state_duration(self) -> float:
+        """
+        Get the duration of the current state
+        """
+        return time.time() - self.state_entry_time
+
+    def is_in_error_state(self) -> bool:
+        """
+        Check if the system is in an error state
+        """
+        return self.current_state == VLAState.ERROR
+
+    def is_executing(self) -> bool:
+        """
+        Check if the system is currently executing an action plan
+        """
+        return self.current_state == VLAState.EXECUTING
+
+    def is_idle(self) -> bool:
+        """
+        Check if the system is in the idle state
+        """
+        return self.current_state == VLAState.IDLE
+```
+
+## State Transition Rules
+
+### IDLE State
+- **Entry**: System initialization or completion of a task
+- **Exit Conditions**:
+  - Voice activation → LISTENING
+  - System error → ERROR
+
+### LISTENING State
+- **Entry**: Voice activation detected
+- **Exit Conditions**:
+  - Audio capture complete → PROCESSING
+  - Timeout → IDLE
+
+### PROCESSING State
+- **Entry**: Audio captured
+- **Exit Conditions**:
+  - Speech-to-text successful → PLANNING
+  - Speech-to-text failed → IDLE
+  - Error → ERROR
+
+### PLANNING State
+- **Entry**: Speech converted to text
+- **Exit Conditions**:
+  - Plan generation successful → EXECUTING
+  - Plan generation failed → ERROR
+
+### EXECUTING State
+- **Entry**: Action plan received
+- **Exit Conditions**:
+  - Execution complete → IDLE
+  - Execution error → ERROR
+
+### ERROR State
+- **Entry**: Error in any state
+- **Exit Conditions**:
+  - Recovery initiated → RECOVERY
+  - Recovery cancelled → IDLE
+
+### RECOVERY State
+- **Entry**: Recovery attempt initiated
+- **Exit Conditions**:
+  - Recovery successful → IDLE
+  - Recovery failed → ERROR
+
+## Error Handling and Recovery
+
+### Recovery Strategy
+The state machine implements a robust recovery strategy:
+- Limited recovery attempts (configurable)
+- State reset on successful recovery
+- Escalation to safe state if recovery fails
+
+### Error Context
+Each error state preserves context:
+- Last error message
+- Active plan (if any)
+- Recovery attempt count
+- Time in error state

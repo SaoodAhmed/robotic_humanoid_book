@@ -1,0 +1,98 @@
+---
+sidebar_position: 1
+---
+
+# Module 4: Vision-Language-Action (VLA)
+
+## Overview
+
+Welcome to Module 4 of the Physical AI & Humanoid Robotics textbook. This module introduces you to Vision-Language-Action (VLA) systems that integrate language models with robotic systems to enable sophisticated human-robot interaction. You'll learn to build systems that can understand voice commands, translate them into robot actions, and execute complex tasks in simulation environments.
+
+## Learning Objectives
+
+By the end of this module, you will be able to:
+
+- Implement voice command processing systems with speech-to-text conversion
+- Integrate large language models (LLMs) for action planning and task decomposition
+- Build integrated control loops that coordinate perception, navigation, and manipulation
+- Design robust error recovery mechanisms for autonomous robot systems
+- Validate and test complete VLA pipelines from voice input to task completion
+- Apply safety considerations and guardrails to autonomous robot behavior
+
+## Prerequisites
+
+Before starting this module, you should have:
+
+- Completed Modules 1-3 with understanding of ROS 2, simulation environments, and perception systems
+- Experience with Python programming and ROS 2 concepts
+- Basic knowledge of machine learning and natural language processing concepts
+- Understanding of robot navigation and manipulation principles
+- Access to an RTX-capable workstation for Isaac Sim
+
+## Module Structure
+
+This module is organized into the following sections:
+
+1. [Voice Command Processing](./voice-command-processing.mdx) - Implementing speech recognition and voice activation
+2. [Language-to-Action Translation](./language-to-action.mdx) - Using LLMs for action planning
+3. [VLA Control Loop](./vla-control-loop.mdx) - Integrating perception, navigation, and manipulation
+4. [System Architecture](./system-architecture.mdx) - Understanding VLA system design
+5. [Command-Plan-Action Flow](./command-plan-action.mdx) - Detailed workflow analysis
+6. [Autonomy State Machine](./autonomy-state-machine.mdx) - State management and transitions
+
+## Lab Exercises
+
+Complete the following lab exercises to reinforce your understanding:
+
+- [Lab 1: Voice-to-Text Pipeline Integration](./lab-1-voice-text-pipeline.mdx) - Basic voice command processing
+- [Lab 2: Language-to-ROS Planning](./lab-2-language-ros-planning.mdx) - LLM integration and action planning
+- [Lab 3: End-to-End VLA Capstone](./lab-3-vla-capstone.mdx) - Complete system integration
+
+## Key Concepts
+
+### Vision-Language-Action Integration
+The VLA approach combines three critical components:
+
+- **Vision**: Perception systems that understand the environment
+- **Language**: Natural language processing for command understanding
+- **Action**: Execution systems that carry out robot behaviors
+
+### Voice Command Processing
+- Speech recognition and conversion to text
+- Voice activation and command validation
+- Confidence scoring and noise filtering
+- Latency optimization for real-time interaction
+
+### Language-to-Action Translation
+- LLM integration for action planning
+- Context-aware command interpretation
+- Safety guardrails and validation
+- Error handling for ambiguous commands
+
+### Integrated Control Loop
+- State machine management
+- Perception-action coordination
+- Error recovery mechanisms
+- Comprehensive logging and monitoring
+
+## Technical Requirements
+
+- **Hardware**: RTX-capable workstation (recommended RTX 3080 or better)
+- **Software**: Ubuntu 22.04, ROS 2 Humble, Isaac Sim, Python 3.10+
+- **APIs**: OpenAI API key for LLM integration
+- **Simulation**: Isaac Sim environment with objects and navigation space
+
+## Estimated Time
+
+This module should take approximately 1-2 weeks to complete, depending on your prior experience with LLM integration and robotics systems.
+
+## Next Steps
+
+After completing this module, you will have a comprehensive understanding of Vision-Language-Action systems and will be prepared to tackle advanced robotics challenges that require natural human-robot interaction. The skills learned in this module form the foundation for developing more sophisticated autonomous systems.
+
+Consider exploring advanced topics such as:
+
+- Multi-modal learning from demonstration
+- Collaborative robotics with multiple agents
+- Real-world deployment considerations
+- Ethical implications of autonomous systems

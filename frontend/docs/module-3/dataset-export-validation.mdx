@@ -1,0 +1,820 @@
+# Dataset Export and Validation Procedures
+
+## Overview
+
+Dataset export and validation are critical steps in the synthetic data generation pipeline. Proper validation ensures that generated datasets meet quality standards and are suitable for training machine learning models. This section covers procedures for exporting datasets in standard formats and implementing comprehensive validation checks.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Export synthetic datasets in standard formats (COCO, YOLO, TFRecord, etc.)
+- Implement comprehensive dataset validation procedures
+- Validate dataset integrity, completeness, and quality
+- Generate dataset statistics and quality metrics
+- Troubleshoot common dataset export issues
+
+## Dataset Export Formats
+
+### Standard Format Overview
+
+Different machine learning frameworks require different dataset formats:
+
+#### COCO Format
+Common format for object detection, segmentation, and keypoints:
+```json
+{
+  "info": {
+    "description": "Synthetic Dataset",
+    "version": "1.0",
+    "year": 2025,
+    "date_created": "2025-12-13"
+  },
+  "licenses": [
+    {
+      "id": 1,
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  ],
+  "images": [
+    {
+      "id": 1,
+      "width": 1920,
+      "height": 1080,
+      "file_name": "rgb_000001.png",
+      "license": 1,
+      "flickr_url": "",
+      "coco_url": "",
+      "date_captured": "2025-12-13 10:00:00"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "segmentation": [[x1, y1, x2, y2, ...]],
+      "area": 123.45,
+      "bbox": [x, y, width, height],
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "chair",
+      "supercategory": "furniture"
+    }
+  ]
+}
+```
+
+#### YOLO Format
+Simple format for object detection:
+```
+# Image: rgb_000001.png
+# Format: class_id center_x center_y width height (normalized 0-1)
+0 0.5 0.5 0.3 0.4
+1 0.2 0.3 0.1 0.1
+```
+
+#### TFRecord Format
+Binary format optimized for TensorFlow:
+```python
+import tensorflow as tf
+
+def create_tf_example(image_path, annotations):
+    """Create a TF Example for dataset export"""
+
+    with tf.io.gfile.GFile(image_path, 'rb') as fid:
+        encoded_jpg = fid.read()
+    encoded_jpg_io = io.BytesIO(encoded_jpg)
+    image = Image.open(encoded_jpg_io)
+    width, height = image.size
+
+    filename = os.path.basename(image_path).encode('utf8')
+    image_format = b'jpg'
+
+    # Process annotations
+    xmins = []  # List of normalized left x coordinates in bounding box (1 per box)
+    xmaxs = []  # List of normalized right x coordinates in bounding box (1 per box)
+    ymins = []  # List of normalized top y coordinates in bounding box (1 per box)
+    ymaxs = []  # List of normalized bottom y coordinates in bounding box (1 per box)
+    classes_text = []  # List of string class name (1 per box)
+    classes = []  # List of integer class id (1 per box)
+
+    for annotation in annotations:
+        xmins.append(annotation['bbox'][0] / width)
+        xmaxs.append((annotation['bbox'][0] + annotation['bbox'][2]) / width)
+        ymins.append(annotation['bbox'][1] / height)
+        ymaxs.append((annotation['bbox'][1] + annotation['bbox'][3]) / height)
+        classes_text.append(annotation['class_name'].encode('utf8'))
+        classes.append(annotation['class_id'])
+
+    tf_example = tf.train.Example(features=tf.train.Features(feature={
+        'image/height': tf.train.Feature(int64_list=tf.train.Int64List(value=[height])),
+        'image/width': tf.train.Feature(int64_list=tf.train.Int64List(value=[width])),
+        'image/filename': tf.train.Feature(bytes_list=tf.train.BytesList(value=[filename])),
+        'image/source_id': tf.train.Feature(bytes_list=tf.train.BytesList(value=[filename])),
+        'image/encoded': tf.train.Feature(bytes_list=tf.train.BytesList(value=[encoded_jpg])),
+        'image/format': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_format])),
+        'image/object/bbox/xmin': tf.train.Feature(float_list=tf.train.FloatList(value=xmins)),
+        'image/object/bbox/xmax': tf.train.Feature(float_list=tf.train.FloatList(value=xmaxs)),
+        'image/object/bbox/ymin': tf.train.Feature(float_list=tf.train.FloatList(value=ymins)),
+        'image/object/bbox/ymax': tf.train.Feature(float_list=tf.train.FloatList(value=ymaxs)),
+        'image/object/class/text': tf.train.Feature(bytes_list=tf.train.BytesList(value=classes_text)),
+        'image/object/class/label': tf.train.Feature(int64_list=tf.train.Int64List(value=classes)),
+    }))
+
+    return tf_example
+```
+
+### Export Pipeline Implementation
+
+#### Basic Export Function
+```python
+import os
+import json
+import cv2
+import numpy as np
+from PIL import Image
+import shutil
+
+def export_dataset(source_dir, output_dir, format_type="coco"):
+    """Export dataset in specified format"""
+
+    if format_type.lower() == "coco":
+        return export_to_coco(source_dir, output_dir)
+    elif format_type.lower() == "yolo":
+        return export_to_yolo(source_dir, output_dir)
+    elif format_type.lower() == "tfrecord":
+        return export_to_tfrecord(source_dir, output_dir)
+    else:
+        raise ValueError(f"Unsupported format: {format_type}")
+
+def export_to_coco(source_dir, output_dir):
+    """Export dataset to COCO format"""
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define COCO structure
+    coco_data = {
+        "info": {
+            "description": "Synthetic Isaac Sim Dataset",
+            "version": "1.0",
+            "year": 2025,
+            "date_created": "2025-12-13"
+        },
+        "licenses": [{"id": 1, "name": "MIT", "url": "https://opensource.org/licenses/MIT"}],
+        "images": [],
+        "annotations": [],
+        "categories": []
+    }
+
+    # Process RGB images
+    rgb_dir = os.path.join(source_dir, "rgb")
+    depth_dir = os.path.join(source_dir, "depth")
+    semantic_dir = os.path.join(source_dir, "semantic")
+
+    # Get all image files
+    rgb_files = [f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    # Process each image
+    for i, rgb_file in enumerate(rgb_files):
+        # Add image info
+        img_path = os.path.join(rgb_dir, rgb_file)
+        img = cv2.imread(img_path)
+        height, width = img.shape[:2]
+
+        image_info = {
+            "id": i + 1,
+            "width": width,
+            "height": height,
+            "file_name": rgb_file,
+            "license": 1,
+            "date_captured": "2025-12-13 10:00:00"
+        }
+        coco_data["images"].append(image_info)
+
+    # Save COCO annotation file
+    coco_file = os.path.join(output_dir, "annotations.json")
+    with open(coco_file, 'w') as f:
+        json.dump(coco_data, f, indent=2)
+
+    # Copy image files
+    output_rgb_dir = os.path.join(output_dir, "images")
+    os.makedirs(output_rgb_dir, exist_ok=True)
+
+    for rgb_file in rgb_files:
+        src_path = os.path.join(rgb_dir, rgb_file)
+        dst_path = os.path.join(output_rgb_dir, rgb_file)
+        shutil.copy2(src_path, dst_path)
+
+    print(f"Dataset exported to COCO format in: {output_dir}")
+    return output_dir
+```
+
+#### YOLO Export Function
+```python
+def export_to_yolo(source_dir, output_dir):
+    """Export dataset to YOLO format"""
+
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "labels"), exist_ok=True)
+
+    # Copy images
+    rgb_dir = os.path.join(source_dir, "rgb")
+    rgb_files = [f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    for rgb_file in rgb_files:
+        src_path = os.path.join(rgb_dir, rgb_file)
+        dst_path = os.path.join(output_dir, "images", rgb_file)
+        shutil.copy2(src_path, dst_path)
+
+        # Create corresponding label file (empty for now - would need bounding box data)
+        label_name = os.path.splitext(rgb_file)[0] + ".txt"
+        label_path = os.path.join(output_dir, "labels", label_name)
+
+        # Create empty label file (would be populated with bounding box data)
+        with open(label_path, 'w') as f:
+            # In a real implementation, this would contain bounding box annotations
+            pass
+
+    # Create data.yaml file
+    data_yaml = f"""
+# Synthetic Isaac Sim Dataset
+path: {os.path.abspath(output_dir)}
+train: images
+val: images
+
+# Classes
+nc: 0  # number of classes (would be populated with actual count)
+names: []  # class names (would be populated with actual names)
+"""
+
+    with open(os.path.join(output_dir, "data.yaml"), 'w') as f:
+        f.write(data_yaml)
+
+    print(f"Dataset exported to YOLO format in: {output_dir}")
+    return output_dir
+```
+
+## Dataset Validation Procedures
+
+### Integrity Validation
+
+Validate the basic integrity of the dataset:
+```python
+def validate_dataset_integrity(dataset_path):
+    """Validate dataset integrity and structure"""
+
+    validation_results = {
+        'overall_status': 'PASS',
+        'checks': {},
+        'errors': [],
+        'warnings': []
+    }
+
+    # Check required directories exist
+    required_dirs = ['rgb', 'depth', 'semantic', 'data']
+    for directory in required_dirs:
+        dir_path = os.path.join(dataset_path, directory)
+        if os.path.exists(dir_path):
+            validation_results['checks'][f'{directory}_dir'] = 'PASS'
+        else:
+            validation_results['checks'][f'{directory}_dir'] = 'FAIL'
+            validation_results['errors'].append(f"Missing directory: {directory}")
+            validation_results['overall_status'] = 'FAIL'
+
+    # Check file counts consistency
+    if validation_results['overall_status'] == 'PASS':
+        rgb_dir = os.path.join(dataset_path, 'rgb')
+        depth_dir = os.path.join(dataset_path, 'depth')
+        semantic_dir = os.path.join(dataset_path, 'semantic')
+
+        rgb_files = set([f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        depth_files = set([f for f in os.listdir(depth_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        semantic_files = set([f for f in os.listdir(semantic_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+
+        if len(rgb_files) == len(depth_files) == len(semantic_files) > 0:
+            validation_results['checks']['file_count_consistency'] = 'PASS'
+        else:
+            validation_results['checks']['file_count_consistency'] = 'FAIL'
+            validation_results['errors'].append(f"Inconsistent file counts: RGB={len(rgb_files)}, Depth={len(depth_files)}, Semantic={len(semantic_files)}")
+            validation_results['overall_status'] = 'FAIL'
+
+    return validation_results
+```
+
+### Quality Validation
+
+Validate the quality of individual dataset samples:
+```python
+def validate_sample_quality(rgb_path, depth_path, semantic_path):
+    """Validate quality of individual dataset sample"""
+
+    quality_results = {
+        'sample_id': os.path.basename(rgb_path),
+        'rgb_quality': True,
+        'depth_quality': True,
+        'semantic_quality': True,
+        'issues': []
+    }
+
+    # Validate RGB image
+    try:
+        rgb_img = cv2.imread(rgb_path)
+        if rgb_img is None:
+            quality_results['rgb_quality'] = False
+            quality_results['issues'].append("Invalid RGB image")
+        else:
+            # Check for common quality issues
+            if rgb_img.size == 0:
+                quality_results['rgb_quality'] = False
+                quality_results['issues'].append("Empty RGB image")
+            elif np.mean(rgb_img) < 10:  # Too dark
+                quality_results['issues'].append("RGB image too dark")
+            elif np.mean(rgb_img) > 245:  # Too bright
+                quality_results['issues'].append("RGB image too bright")
+    except Exception as e:
+        quality_results['rgb_quality'] = False
+        quality_results['issues'].append(f"RGB validation error: {str(e)}")
+
+    # Validate depth map
+    try:
+        depth_img = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+        if depth_img is None:
+            quality_results['depth_quality'] = False
+            quality_results['issues'].append("Invalid depth image")
+        else:
+            # Check for valid depth values
+            valid_depths = depth_img[depth_img > 0]
+            if len(valid_depths) == 0:
+                quality_results['issues'].append("No valid depth values in image")
+            elif np.max(valid_depths) > 100:  # Unusually high depth values
+                quality_results['issues'].append("Unusually high depth values")
+    except Exception as e:
+        quality_results['depth_quality'] = False
+        quality_results['issues'].append(f"Depth validation error: {str(e)}")
+
+    # Validate semantic mask
+    try:
+        semantic_img = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+        if semantic_img is None:
+            quality_results['semantic_quality'] = False
+            quality_results['issues'].append("Invalid semantic image")
+        else:
+            unique_classes = np.unique(semantic_img)
+            if len(unique_classes) < 2:  # Only background, no objects
+                quality_results['issues'].append("Semantic mask contains only background")
+    except Exception as e:
+        quality_results['semantic_quality'] = False
+        quality_results['issues'].append(f"Semantic validation error: {str(e)}")
+
+    return quality_results
+
+def validate_dataset_quality(dataset_path, sample_size=10):
+    """Validate quality of dataset samples"""
+
+    rgb_dir = os.path.join(dataset_path, 'rgb')
+    depth_dir = os.path.join(dataset_path, 'depth')
+    semantic_dir = os.path.join(dataset_path, 'semantic')
+
+    # Get all files
+    rgb_files = [f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    # Sample files for validation
+    import random
+    sampled_files = random.sample(rgb_files, min(sample_size, len(rgb_files)))
+
+    quality_results = []
+    for rgb_file in sampled_files:
+        rgb_path = os.path.join(rgb_dir, rgb_file)
+        depth_file = os.path.splitext(rgb_file)[0] + '.png'  # Assuming same name with .png extension
+        semantic_file = os.path.splitext(rgb_file)[0] + '.png'  # Assuming same name with .png extension
+
+        depth_path = os.path.join(depth_dir, depth_file)
+        semantic_path = os.path.join(semantic_dir, semantic_file)
+
+        if os.path.exists(depth_path) and os.path.exists(semantic_path):
+            result = validate_sample_quality(rgb_path, depth_path, semantic_path)
+            quality_results.append(result)
+
+    # Calculate overall quality metrics
+    total_samples = len(quality_results)
+    if total_samples > 0:
+        rgb_quality_rate = sum(1 for r in quality_results if r['rgb_quality']) / total_samples
+        depth_quality_rate = sum(1 for r in quality_results if r['depth_quality']) / total_samples
+        semantic_quality_rate = sum(1 for r in quality_results if r['semantic_quality']) / total_samples
+
+        overall_quality = {
+            'total_samples': total_samples,
+            'rgb_quality_rate': rgb_quality_rate,
+            'depth_quality_rate': depth_quality_rate,
+            'semantic_quality_rate': semantic_quality_rate,
+            'issues_summary': [issue for r in quality_results for issue in r['issues']]
+        }
+
+        return overall_quality
+
+    return {'total_samples': 0, 'quality_rates': {}, 'issues_summary': []}
+```
+
+### Completeness Validation
+
+Validate that the dataset is complete and contains all expected components:
+```python
+def validate_dataset_completeness(dataset_path, expected_samples=None):
+    """Validate dataset completeness"""
+
+    completeness_results = {
+        'expected_samples': expected_samples,
+        'actual_samples': 0,
+        'missing_samples': [],
+        'completeness_rate': 0.0,
+        'status': 'PASS'
+    }
+
+    # Check all required modalities exist for each sample
+    rgb_dir = os.path.join(dataset_path, 'rgb')
+    depth_dir = os.path.join(dataset_path, 'depth')
+    semantic_dir = os.path.join(dataset_path, 'semantic')
+
+    rgb_files = [f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    completeness_results['actual_samples'] = len(rgb_files)
+
+    for rgb_file in rgb_files:
+        base_name = os.path.splitext(rgb_file)[0]
+
+        # Check if corresponding depth and semantic files exist
+        depth_file = base_name + '.png'  # Assuming .png extension
+        semantic_file = base_name + '.png'  # Assuming .png extension
+
+        depth_path = os.path.join(depth_dir, depth_file)
+        semantic_path = os.path.join(semantic_dir, semantic_file)
+
+        missing_modalities = []
+        if not os.path.exists(depth_path):
+            missing_modalities.append('depth')
+        if not os.path.exists(semantic_path):
+            missing_modalities.append('semantic')
+
+        if missing_modalities:
+            completeness_results['missing_samples'].append({
+                'sample': rgb_file,
+                'missing': missing_modalities
+            })
+
+    # Calculate completeness rate
+    total_required = len(rgb_files) * 3  # RGB + Depth + Semantic
+    missing_count = len(completeness_results['missing_samples']) * 3  # Assuming all modalities missing for incomplete samples
+    actual_available = total_required - missing_count
+
+    completeness_results['completeness_rate'] = actual_available / total_required if total_required > 0 else 0
+
+    if completeness_results['completeness_rate'] < 0.95:  # Less than 95% complete
+        completeness_results['status'] = 'FAIL'
+
+    return completeness_results
+```
+
+## Dataset Statistics and Metrics
+
+### Statistical Analysis
+
+Generate comprehensive statistics about the dataset:
+```python
+def generate_dataset_statistics(dataset_path):
+    """Generate comprehensive dataset statistics"""
+
+    stats = {
+        'dataset_info': {},
+        'image_statistics': {},
+        'depth_statistics': {},
+        'semantic_statistics': {},
+        'file_size_info': {}
+    }
+
+    # Basic dataset info
+    stats['dataset_info']['path'] = dataset_path
+    stats['dataset_info']['creation_date'] = os.path.getctime(dataset_path)
+
+    # Image statistics
+    rgb_dir = os.path.join(dataset_path, 'rgb')
+    rgb_files = [f for f in os.listdir(rgb_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    resolutions = []
+    file_sizes = []
+
+    for rgb_file in rgb_files:
+        img_path = os.path.join(rgb_dir, rgb_file)
+
+        # Get image resolution
+        img = cv2.imread(img_path)
+        if img is not None:
+            height, width = img.shape[:2]
+            resolutions.append((width, height))
+
+        # Get file size
+        file_size = os.path.getsize(img_path)
+        file_sizes.append(file_size)
+
+    if resolutions:
+        width_height_pairs = list(zip(*resolutions))
+        stats['image_statistics'] = {
+            'total_images': len(resolutions),
+            'resolution_counts': {},
+            'avg_resolution': (np.mean(width_height_pairs[0]), np.mean(width_height_pairs[1])),
+            'min_resolution': (min(width_height_pairs[0]), min(width_height_pairs[1])),
+            'max_resolution': (max(width_height_pairs[0]), max(width_height_pairs[1]))
+        }
+
+        # Count resolution occurrences
+        for res in set(resolutions):
+            stats['image_statistics']['resolution_counts'][str(res)] = resolutions.count(res)
+
+    # File size statistics
+    if file_sizes:
+        stats['file_size_info'] = {
+            'total_size_mb': sum(file_sizes) / (1024 * 1024),  # Convert to MB
+            'avg_file_size_kb': np.mean(file_sizes) / 1024,  # Convert to KB
+            'min_file_size_kb': min(file_sizes) / 1024,
+            'max_file_size_kb': max(file_sizes) / 1024,
+            'std_file_size_kb': np.std(file_sizes) / 1024
+        }
+
+    # Depth statistics
+    depth_dir = os.path.join(dataset_path, 'depth')
+    depth_files = [f for f in os.listdir(depth_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    depth_values = []
+    for depth_file in depth_files[:10]:  # Sample first 10 for efficiency
+        depth_path = os.path.join(depth_dir, depth_file)
+        depth_img = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+        if depth_img is not None:
+            valid_depths = depth_img[depth_img > 0]  # Only valid depth values
+            depth_values.extend(valid_depths.flatten())
+
+    if depth_values:
+        stats['depth_statistics'] = {
+            'avg_depth': np.mean(depth_values),
+            'min_depth': np.min(depth_values),
+            'max_depth': np.max(depth_values),
+            'std_depth': np.std(depth_values),
+            'total_valid_pixels': len(depth_values)
+        }
+
+    # Semantic statistics
+    semantic_dir = os.path.join(dataset_path, 'semantic')
+    semantic_files = [f for f in os.listdir(semantic_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+    class_counts = {}
+    for semantic_file in semantic_files[:10]:  # Sample first 10 for efficiency
+        semantic_path = os.path.join(semantic_dir, semantic_file)
+        semantic_img = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+        if semantic_img is not None:
+            unique, counts = np.unique(semantic_img, return_counts=True)
+            for class_id, count in zip(unique, counts):
+                if class_id in class_counts:
+                    class_counts[class_id] += count
+                else:
+                    class_counts[class_id] = count
+
+    stats['semantic_statistics'] = {
+        'total_classes': len(class_counts),
+        'class_pixel_counts': class_counts,
+        'dominant_class': max(class_counts, key=class_counts.get) if class_counts else None
+    }
+
+    return stats
+```
+
+### Performance Metrics
+
+Track performance metrics for the generation process:
+```python
+import time
+
+def track_generation_performance(start_time, total_samples, total_time):
+    """Track performance metrics for dataset generation"""
+
+    performance_metrics = {
+        'start_time': start_time,
+        'end_time': time.time(),
+        'total_samples': total_samples,
+        'total_time_seconds': total_time,
+        'samples_per_second': total_samples / total_time if total_time > 0 else 0,
+        'time_per_sample_ms': (total_time / total_samples) * 1000 if total_samples > 0 else 0
+    }
+
+    return performance_metrics
+```
+
+## Validation Report Generation
+
+### Automated Report Creation
+
+Create comprehensive validation reports:
+```python
+def generate_validation_report(dataset_path, output_path=None):
+    """Generate comprehensive validation report"""
+
+    if output_path is None:
+        output_path = os.path.join(dataset_path, "validation_report.json")
+
+    report = {
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'dataset_path': dataset_path,
+        'integrity_validation': validate_dataset_integrity(dataset_path),
+        'quality_validation': validate_dataset_quality(dataset_path),
+        'completeness_validation': validate_dataset_completeness(dataset_path),
+        'statistics': generate_dataset_statistics(dataset_path)
+    }
+
+    # Add overall assessment
+    integrity_pass = report['integrity_validation']['overall_status'] == 'PASS'
+    quality_rate = report['quality_validation'].get('rgb_quality_rate', 0)
+    completeness_rate = report['completeness_validation']['completeness_rate']
+
+    if integrity_pass and quality_rate >= 0.95 and completeness_rate >= 0.95:
+        report['overall_assessment'] = 'PASS'
+        report['recommendation'] = 'Dataset is ready for use in training'
+    else:
+        report['overall_assessment'] = 'FAIL'
+        report['recommendation'] = 'Dataset requires fixes before use in training'
+
+    # Save report
+    with open(output_path, 'w') as f:
+        json.dump(report, f, indent=2)
+
+    print(f"Validation report saved to: {output_path}")
+    return report
+
+def print_validation_summary(report):
+    """Print a summary of validation results"""
+
+    print("=" * 60)
+    print("DATASET VALIDATION SUMMARY")
+    print("=" * 60)
+
+    print(f"Dataset Path: {report['dataset_path']}")
+    print(f"Validation Time: {report['timestamp']}")
+    print(f"Overall Assessment: {report['overall_assessment']}")
+    print(f"Recommendation: {report['recommendation']}")
+
+    print("\nINTEGRITY CHECKS:")
+    integrity = report['integrity_validation']
+    print(f"  Status: {integrity['overall_status']}")
+    if integrity['errors']:
+        print(f"  Errors: {len(integrity['errors'])}")
+        for error in integrity['errors']:
+            print(f"    - {error}")
+
+    print("\nQUALITY METRICS:")
+    quality = report['quality_validation']
+    if 'rgb_quality_rate' in quality:
+        print(f"  RGB Quality Rate: {quality['rgb_quality_rate']:.2%}")
+        print(f"  Depth Quality Rate: {quality['depth_quality_rate']:.2%}")
+        print(f"  Semantic Quality Rate: {quality['semantic_quality_rate']:.2%}")
+
+    print("\nCOMPLETENESS:")
+    completeness = report['completeness_validation']
+    print(f"  Completeness Rate: {completeness['completeness_rate']:.2%}")
+    print(f"  Actual Samples: {completeness['actual_samples']}")
+    if completeness['missing_samples']:
+        print(f"  Missing Samples: {len(completeness['missing_samples'])}")
+
+    print("\nDATASET STATISTICS:")
+    stats = report['statistics']
+    if 'image_statistics' in stats:
+        img_stats = stats['image_statistics']
+        print(f"  Total Images: {img_stats.get('total_images', 0)}")
+        print(f"  Average Resolution: {img_stats.get('avg_resolution', (0, 0))}")
+
+    print("=" * 60)
+```
+
+## Practical Exercise: Complete Validation Pipeline
+
+### Objective
+Implement a complete dataset validation pipeline that includes export, validation, and reporting.
+
+### Steps
+
+1. **Export Pipeline**: Set up export to multiple formats
+2. **Validation Pipeline**: Implement comprehensive validation
+3. **Reporting**: Generate detailed validation reports
+4. **Metrics**: Track performance and quality metrics
+
+### Sample Implementation
+
+```python
+def complete_validation_pipeline(source_dir, output_dir, formats=['coco']):
+    """Complete validation pipeline from export to validation"""
+
+    print("🚀 Starting complete validation pipeline...")
+
+    # Step 1: Export in specified formats
+    export_results = {}
+    for format_type in formats:
+        print(f"📦 Exporting to {format_type.upper()} format...")
+        try:
+            export_result = export_dataset(source_dir, os.path.join(output_dir, format_type), format_type)
+            export_results[format_type] = export_result
+            print(f"✅ {format_type.upper()} export completed")
+        except Exception as e:
+            print(f"❌ {format_type.upper()} export failed: {str(e)}")
+            export_results[format_type] = None
+
+    # Step 2: Validate the original source dataset
+    print("🔍 Validating source dataset...")
+    validation_report = generate_validation_report(source_dir)
+
+    # Step 3: Print validation summary
+    print_validation_summary(validation_report)
+
+    # Step 4: Generate statistics
+    print("📊 Generating dataset statistics...")
+    stats = generate_dataset_statistics(source_dir)
+
+    print("\n📈 DATASET STATISTICS:")
+    print(f"  Total Images: {stats['image_statistics'].get('total_images', 0)}")
+    print(f"  Average Resolution: {stats['image_statistics'].get('avg_resolution', (0, 0))}")
+    print(f"  Total Size: {stats['file_size_info'].get('total_size_mb', 0):.2f} MB")
+    print(f"  Total Classes: {stats['semantic_statistics'].get('total_classes', 0)}")
+
+    print("\n✅ Complete validation pipeline finished!")
+
+    return {
+        'export_results': export_results,
+        'validation_report': validation_report,
+        'statistics': stats
+    }
+
+# Example usage
+if __name__ == "__main__":
+    # Run the complete pipeline
+    results = complete_validation_pipeline(
+        source_dir="output/semantic_pipeline_test",  # From previous exercises
+        output_dir="output/validated_dataset",
+        formats=['coco', 'yolo']  # Export to multiple formats
+    )
+
+    print("\n🎯 Pipeline completed with results:")
+    print(f"  - Export formats: {list(results['export_results'].keys())}")
+    print(f"  - Validation status: {results['validation_report']['overall_assessment']}")
+    print(f"  - Dataset quality: {'PASS' if results['validation_report']['overall_assessment'] == 'PASS' else 'FAIL'}")
+```
+
+## Troubleshooting Common Export Issues
+
+### File Format Issues
+- **Corrupted files**: Check disk space and file permissions
+- **Wrong extensions**: Ensure consistent file naming conventions
+- **Large file sizes**: Consider compression or resolution reduction
+
+### Validation Issues
+- **Missing annotations**: Verify annotator attachment in Replicator
+- **Inconsistent counts**: Check that all modalities are generated
+- **Quality problems**: Review scene setup and lighting conditions
+
+### Performance Issues
+- **Slow export**: Optimize file I/O and use appropriate batch sizes
+- **Memory issues**: Process datasets in chunks for large datasets
+- **Disk space**: Monitor available space during generation
+
+## Best Practices
+
+1. **Consistent naming**: Use consistent file naming conventions across all modalities
+2. **Validation first**: Always validate datasets before using for training
+3. **Multiple formats**: Export to multiple formats to support different frameworks
+4. **Documentation**: Maintain clear documentation of dataset structure and contents
+5. **Versioning**: Keep track of dataset versions and changes
+6. **Automated checks**: Implement automated validation in your pipeline
+
+## Performance Targets
+
+For dataset export and validation:
+- **Export speed**: Export 1000 samples in under 10 minutes
+- **Validation speed**: Validate 1000 samples in under 5 minutes
+- **Quality threshold**: 95% of samples must pass quality checks
+- **Completeness**: 95% of expected samples must be present
+- **Format compliance**: Export to standard formats (COCO, YOLO, etc.)
+
+## Next Steps
+
+After implementing dataset export and validation:
+1. Create automated dataset generation pipelines
+2. Implement continuous integration for dataset quality
+3. Set up dataset versioning and tracking
+4. Create tools for dataset visualization and exploration
+5. Integrate with model training pipelines
+
+## References
+
+- [COCO Dataset Format](https://cocodataset.org/#format-data)
+- [YOLO Dataset Format](https://docs.ultralytics.com/datasets/detect/)
+- [TFRecord Guide](https://www.tensorflow.org/tutorials/load_data/tfrecord)
+- [Dataset Validation Best Practices](https://nvidia-isaac-ros.github.io/released/synthetic_data/index.html)

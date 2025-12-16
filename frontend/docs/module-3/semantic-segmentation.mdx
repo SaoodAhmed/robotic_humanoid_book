@@ -1,0 +1,671 @@
+# Semantic Segmentation Mask Generation
+
+## Overview
+
+Semantic segmentation mask generation is a powerful capability in Isaac Sim that assigns a semantic label to each pixel in an image, indicating which object class it belongs to. This ground truth annotation is essential for training semantic segmentation models and is a key component of comprehensive synthetic datasets for computer vision applications.
+
+## Learning Objectives
+
+By the end of this section, students will be able to:
+- Configure semantic segmentation in Isaac Sim Replicator
+- Assign semantic labels to objects in the scene
+- Generate high-quality semantic segmentation masks
+- Validate semantic segmentation accuracy
+- Optimize semantic segmentation generation for performance
+
+## Semantic Segmentation Fundamentals
+
+### Concept and Purpose
+
+Semantic segmentation creates pixel-level annotations where each pixel is assigned to a semantic class:
+- **Class-level labeling**: All pixels of the same class get the same label
+- **Instance-agnostic**: Does not distinguish between different instances of the same class
+- **Ground truth data**: Provides training labels for segmentation models
+
+### Label Representation
+
+Semantic segmentation masks are typically represented as:
+- **Indexed images**: Each unique value represents a class
+- **Color maps**: Each class assigned a specific color for visualization
+- **JSON metadata**: Maps class IDs to class names
+
+## Setting Up Semantic Labels in Isaac Sim
+
+### Assigning Semantic Labels to Objects
+
+Objects in Isaac Sim can be assigned semantic labels using the SemanticSchema API:
+
+```python
+import omni
+from pxr import UsdSkel, UsdGeom, Usd, Sdf
+from omni.isaac.core.utils.prims import create_prim
+
+def assign_semantic_label(prim_path, class_name, instance_id=None):
+    """Assign semantic label to a prim in Isaac Sim"""
+
+    stage = omni.usd.get_context().get_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+
+    if not prim.IsValid():
+        print(f"❌ Prim {prim_path} not found")
+        return False
+
+    # Apply semantic schema to the prim
+    from omni.replicator.core import omni as replicator_omni
+
+    # Add semantic schema
+    semantic_api = replicator_omni.add_semantics(prim, class_name)
+
+    if instance_id:
+        # Set instance ID if needed
+        semantic_api.set_instance_id(instance_id)
+
+    return True
+
+# Example usage
+assign_semantic_label("/World/Environment/GroundPlane", "ground")
+assign_semantic_label("/World/Environment/Wall", "wall")
+assign_semantic_label("/World/Environment/Chair", "furniture")
+assign_semantic_label("/World/Environment/Cube", "obstacle")
+```
+
+### Semantic Schema Properties
+
+Key properties for semantic labeling:
+- **Class Name**: The semantic class (e.g., "chair", "table", "person")
+- **Instance ID**: Unique identifier for individual instances
+- **Instance Name**: Human-readable name for the instance
+
+```python
+def setup_scene_semantics():
+    """Set up semantic labels for a complete scene"""
+
+    # Ground plane
+    assign_semantic_label("/World/Environment/GroundPlane", "ground")
+
+    # Walls
+    assign_semantic_label("/World/Environment/Walls/WallFront", "wall")
+    assign_semantic_label("/World/Environment/Walls/WallBack", "wall")
+    assign_semantic_label("/World/Environment/Walls/WallLeft", "wall")
+    assign_semantic_label("/World/Environment/Walls/WallRight", "wall")
+
+    # Furniture
+    assign_semantic_label("/World/Environment/Furniture/Table", "furniture")
+    assign_semantic_label("/World/Environment/Furniture/Chair1", "furniture")
+    assign_semantic_label("/World/Environment/Furniture/Chair2", "furniture")
+
+    # Obstacles
+    assign_semantic_label("/World/Environment/Obstacles/Cube1", "obstacle")
+    assign_semantic_label("/World/Environment/Obstacles/Sphere1", "obstacle")
+    assign_semantic_label("/World/Environment/Obstacles/Cylinder1", "obstacle")
+
+    # Other objects
+    assign_semantic_label("/World/Environment/Props/Plant", "decoration")
+    assign_semantic_label("/World/Environment/Props/Painting", "decoration")
+```
+
+## Semantic Segmentation Generation Pipeline
+
+### Basic Semantic Segmentation Setup
+
+```python
+import omni.replicator.core as rep
+
+def setup_semantic_segmentation():
+    """Set up semantic segmentation generation pipeline"""
+
+    # Create camera and render product
+    camera = rep.create.camera()
+    render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+    # Attach semantic segmentation annotator
+    semantic_annotator = rep.AnnotatorRegistry.get_annotator("semantic_segmentation")
+    semantic_annotator.attach(render_product)
+
+    # Also attach RGB for comparison
+    rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+    rgb_annotator.attach(render_product)
+
+    # Configure writer
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/semantic_dataset",
+        rgb=True,
+        semantic_segmentation=True,
+        instance_segmentation=True  # Also generate instance segmentation
+    )
+
+    return writer
+```
+
+### Multi-Modal Semantic Generation
+
+Generate semantic segmentation alongside other annotations:
+```python
+def setup_multi_annotation_generation():
+    """Generate semantic segmentation with multiple annotations"""
+
+    camera = rep.create.camera()
+    render_product = rep.create.render_product(camera, resolution=(1920, 1080))
+
+    # Attach all required annotators
+    annotators = {
+        'rgb': rep.AnnotatorRegistry.get_annotator("rgb"),
+        'semantic': rep.AnnotatorRegistry.get_annotator("semantic_segmentation"),
+        'instance': rep.AnnotatorRegistry.get_annotator("instance_segmentation"),
+        'depth': rep.AnnotatorRegistry.get_annotator("distance_to_image_plane"),
+        'bounding_box': rep.AnnotatorRegistry.get_annotator("bounding_box_2d_tight")
+    }
+
+    for name, annotator in annotators.items():
+        annotator.attach(render_product)
+
+    # Configure writer for all annotations
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/multi_annotation_dataset",
+        rgb=True,
+        semantic_segmentation=True,
+        instance_segmentation=True,
+        depth=True,
+        bounding_box_2d_tight=True
+    )
+
+    return writer
+```
+
+## Advanced Semantic Labeling Techniques
+
+### Hierarchical Semantic Labels
+
+Create hierarchical semantic labels for more detailed classification:
+```python
+def create_hierarchical_semantics():
+    """Create hierarchical semantic labels"""
+
+    # Furniture hierarchy
+    assign_semantic_label("/World/Environment/Furniture/Chair", "furniture:seating")
+    assign_semantic_label("/World/Environment/Furniture/Table", "furniture:surface")
+    assign_semantic_label("/World/Environment/Furniture/Cabinet", "furniture:storage")
+
+    # Object types
+    assign_semantic_label("/World/Environment/Obstacles/Cube", "object:geometric:square")
+    assign_semantic_label("/World/Environment/Obstacles/Sphere", "object:geometric:round")
+    assign_semantic_label("/World/Environment/Obstacles/Cylinder", "object:geometric:cylindrical")
+```
+
+### Dynamic Semantic Assignment
+
+Use Replicator randomizers to dynamically assign semantic labels:
+```python
+@rep.randomizer
+def randomize_semantic_labels():
+    """Randomize semantic labels for domain randomization"""
+
+    # Get all objects in the environment
+    objects = rep.get.prims(path_pattern="/World/Environment/Objects/*")
+
+    with rep.trigger.on_frame():
+        # Assign random semantic labels based on object type
+        for i, prim_path in enumerate(objects.get_paths()):
+            # Determine object type based on name or properties
+            if "chair" in prim_path.lower():
+                rep.modify.semantics(prim=prim_path, semantic_label="furniture:seating")
+            elif "table" in prim_path.lower():
+                rep.modify.semantics(prim=prim_path, semantic_label="furniture:surface")
+            elif "cube" in prim_path.lower():
+                rep.modify.semantics(prim=prim_path, semantic_label="obstacle:block")
+            else:
+                rep.modify.semantics(prim=prim_path, semantic_label="object")
+
+randomize_semantic_labels()
+```
+
+## Semantic Segmentation Quality and Validation
+
+### Semantic Mask Validation
+
+Validate the quality and accuracy of generated semantic masks:
+```python
+import numpy as np
+import cv2
+from collections import Counter
+
+def validate_semantic_mask(semantic_path, expected_classes=None):
+    """Validate semantic segmentation mask quality"""
+
+    # Load semantic mask
+    semantic_mask = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+
+    if semantic_mask is None:
+        return False, "Invalid semantic mask file"
+
+    # Get unique class IDs in the mask
+    unique_classes = np.unique(semantic_mask)
+
+    # Count pixels per class
+    class_counts = Counter(semantic_mask.flatten())
+
+    # Remove background (usually ID 0)
+    if 0 in class_counts:
+        del class_counts[0]
+
+    validation_result = {
+        'unique_classes': unique_classes,
+        'class_pixel_counts': dict(class_counts),
+        'total_pixels': semantic_mask.size,
+        'valid_pixels': np.count_nonzero(semantic_mask),
+        'valid_percentage': (np.count_nonzero(semantic_mask) / semantic_mask.size) * 100
+    }
+
+    # Check if expected classes are present
+    if expected_classes:
+        missing_classes = set(expected_classes) - set(unique_classes)
+        if missing_classes:
+            validation_result['missing_classes'] = list(missing_classes)
+            return False, f"Missing expected classes: {missing_classes}"
+
+    return True, validation_result
+
+def analyze_semantic_distribution(semantic_path):
+    """Analyze the distribution of semantic classes in a mask"""
+
+    semantic_mask = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+    if semantic_mask is None:
+        return None
+
+    # Get unique values and their counts
+    unique, counts = np.unique(semantic_mask, return_counts=True)
+
+    # Calculate percentages
+    total_pixels = semantic_mask.size
+    percentages = (counts / total_pixels) * 100
+
+    distribution = {}
+    for i, class_id in enumerate(unique):
+        distribution[int(class_id)] = {
+            'count': int(counts[i]),
+            'percentage': float(percentages[i])
+        }
+
+    return distribution
+```
+
+### Class Mapping and Visualization
+
+Create visualizations and class mappings for semantic segmentation:
+```python
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.colors import ListedColormap
+import random
+
+def create_class_color_map(class_names):
+    """Create a color map for semantic classes"""
+
+    # Generate random colors for each class
+    colors = {}
+    for i, class_name in enumerate(class_names):
+        # Generate a random color (R, G, B values between 0 and 1)
+        color = (random.random(), random.random(), random.random())
+        colors[i] = color
+
+    # Add background color (black for ID 0)
+    colors[0] = (0, 0, 0)
+
+    return colors
+
+def visualize_semantic_mask(semantic_path, class_names, rgb_path=None):
+    """Visualize semantic segmentation mask with class labels"""
+
+    # Load semantic mask
+    semantic_mask = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+
+    # Create color map
+    class_ids = list(range(len(class_names) + 1))  # +1 for background
+    class_names_with_bg = ['background'] + class_names
+
+    # Generate random colors for visualization
+    colors = []
+    for i in range(len(class_ids)):
+        if i == 0:  # Background
+            colors.append([0, 0, 0])  # Black for background
+        else:
+            # Generate random color
+            colors.append([random.random(), random.random(), random.random()])
+
+    # Normalize colors to 0-1 range
+    colors = np.array(colors)
+    if np.max(colors) > 1:
+        colors = colors / 255.0
+
+    cmap = ListedColormap(colors)
+
+    # Create visualization
+    fig, axes = plt.subplots(1, 3 if rgb_path else 2, figsize=(15, 5))
+
+    # Semantic mask
+    axes[0].imshow(semantic_mask, cmap=cmap, vmin=0, vmax=len(class_ids)-1)
+    axes[0].set_title('Semantic Segmentation')
+    axes[0].axis('off')
+
+    # Legend
+    legend_elements = [patches.Patch(color=colors[i], label=class_names_with_bg[i])
+                      for i in range(len(class_names_with_bg))]
+    axes[1].legend(handles=legend_elements, loc='center')
+    axes[1].axis('off')
+    axes[1].set_title('Class Legend')
+
+    # RGB image if provided
+    if rgb_path:
+        rgb_img = cv2.imread(rgb_path)
+        rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+        axes[2].imshow(rgb_img)
+        axes[2].set_title('RGB Image')
+        axes[2].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+```
+
+## Performance Optimization for Semantic Segmentation
+
+### Semantic-Specific Optimizations
+
+Optimize for efficient semantic segmentation generation:
+```python
+def optimize_semantic_generation():
+    """Optimize settings for efficient semantic segmentation generation"""
+
+    # Semantic segmentation is generally fast since it's done during rendering
+    # Main optimizations focus on scene complexity and memory usage
+
+    # Use appropriate level of detail for objects
+    # Simplify geometry for distant objects that don't need detailed segmentation
+
+    # Consider using instancing for multiple similar objects
+    # This reduces scene complexity while maintaining semantic accuracy
+```
+
+### Multi-Sensor Semantic Generation
+
+Support up to 50 concurrent semantic sensors per simulation:
+```python
+def setup_multi_sensor_semantic(num_sensors=10):
+    """Set up multiple semantic segmentation sensors"""
+
+    sensors = []
+
+    for i in range(num_sensors):
+        # Create camera at different position
+        camera = rep.create.camera(
+            prim_path=f"/World/Sensors/SemanticCam{i}",
+            position=[np.random.uniform(-3, 3), np.random.uniform(-3, 3), np.random.uniform(1, 2)],
+            orientation=[0.707, 0, 0, 0.707]  # Looking down
+        )
+
+        # Create render product
+        render_product = rep.create.render_product(camera, resolution=(640, 480))
+
+        # Attach semantic annotator
+        semantic_annotator = rep.AnnotatorRegistry.get_annotator("semantic_segmentation")
+        semantic_annotator.attach(render_product)
+
+        sensors.append({
+            'camera': camera,
+            'render_product': render_product,
+            'annotator': semantic_annotator
+        })
+
+    return sensors
+```
+
+## Semantic Domain Randomization
+
+### Randomizing Semantic Properties
+
+Apply domain randomization to semantic segmentation:
+```python
+@rep.randomizer
+def randomize_semantic_objects():
+    """Randomize objects while maintaining semantic consistency"""
+
+    # Get all objects that should have semantic labels
+    all_objects = rep.get.prims(path_pattern="/World/Environment/*")
+
+    with rep.trigger.on_frame():
+        # Randomize positions while keeping semantic labels
+        rep.modify.pose(
+            prim=all_objects,
+            position=rep.distribution.uniform((-2, -2, 0), (2, 2, 0))
+        )
+
+randomize_semantic_objects()
+```
+
+## Practical Exercise: Semantic Segmentation Pipeline
+
+### Objective
+Create a complete semantic segmentation generation pipeline with validation and quality assessment.
+
+### Steps
+
+1. **Scene Setup**:
+   - Create a scene with multiple object types
+   - Assign semantic labels to all objects
+   - Configure lighting and camera
+
+2. **Semantic Configuration**:
+   - Set up semantic segmentation annotator
+   - Configure class mappings
+   - Set up output writer
+
+3. **Generation and Validation**:
+   - Generate semantic segmentation masks
+   - Validate quality and accuracy
+   - Analyze class distributions
+
+### Sample Implementation
+
+```python
+import omni.replicator.core as rep
+import numpy as np
+import cv2
+import os
+import json
+
+def create_semantic_segmentation_pipeline():
+    """Create a complete semantic segmentation pipeline"""
+
+    # Define semantic classes
+    semantic_classes = [
+        "background",
+        "ground",
+        "wall",
+        "furniture",
+        "obstacle",
+        "decoration"
+    ]
+
+    # Create scene objects with semantic labels
+    objects_config = [
+        ("/World/Environment/GroundPlane", "ground", [0, 0, 0], [10, 10, 1]),
+        ("/World/Environment/Wall", "wall", [0, -5, 1], [10, 0.2, 2]),
+        ("/World/Environment/Furniture/Table", "furniture", [1, 0, 0.5], [1, 1, 0.5]),
+        ("/World/Environment/Furniture/Chair", "furniture", [-1, 0, 0.3], [0.5, 0.5, 0.6]),
+        ("/World/Environment/Obstacles/Cube", "obstacle", [2, 1, 0.5], [0.5, 0.5, 0.5]),
+        ("/World/Environment/Props/Plant", "decoration", [-2, 1, 0.5], [0.3, 0.3, 0.8])
+    ]
+
+    for prim_path, class_name, position, scale in objects_config:
+        # Create object
+        if "GroundPlane" in prim_path or "Wall" in prim_path:
+            rep.create.plane(prim_path=prim_path, position=position, scale=scale)
+        elif "Table" in prim_path or "Cube" in prim_path:
+            rep.create.cube(prim_path=prim_path, position=position, scale=scale)
+        elif "Chair" in prim_path:
+            rep.create.cube(prim_path=prim_path, position=position, scale=scale)
+        elif "Plant" in prim_path:
+            rep.create.cylinder(prim_path=prim_path, position=position, scale=scale)
+
+        # Assign semantic label
+        assign_semantic_label(prim_path, class_name)
+
+    # Create camera
+    camera = rep.create.camera(
+        prim_path="/World/Sensors/SemanticCamera",
+        position=[0, -6, 1.5],
+        orientation=[0.707, 0, 0, 0.707]
+    )
+
+    # Create render product
+    render_product = rep.create.render_product(camera, resolution=(1280, 720))
+
+    # Attach annotators
+    rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+    rgb_annotator.attach(render_product)
+
+    semantic_annotator = rep.AnnotatorRegistry.get_annotator("semantic_segmentation")
+    semantic_annotator.attach(render_product)
+
+    # Configure writer
+    writer = rep.WriterRegistry.get("BasicWriter")
+    writer.initialize(
+        output_dir="output/semantic_pipeline_test",
+        rgb=True,
+        semantic_segmentation=True
+    )
+
+    # Create class mapping file for reference
+    class_mapping = {i: class_name for i, class_name in enumerate(semantic_classes)}
+    with open("output/semantic_pipeline_test/class_mapping.json", "w") as f:
+        json.dump(class_mapping, f, indent=2)
+
+    # Execute generation
+    with rep.trigger.on_frame(num_frames=20):
+        writer.write()
+
+    print("Semantic segmentation pipeline executed successfully!")
+    print(f"Class mapping saved to: output/semantic_pipeline_test/class_mapping.json")
+
+def validate_semantic_dataset(dataset_path):
+    """Validate a generated semantic segmentation dataset"""
+
+    semantic_dir = os.path.join(dataset_path, "semantic")
+    rgb_dir = os.path.join(dataset_path, "rgb")
+
+    if not os.path.exists(semantic_dir):
+        print("❌ Semantic directory not found")
+        return False
+
+    semantic_files = [f for f in os.listdir(semantic_dir) if f.endswith('.png')]
+    print(f"📊 Found {len(semantic_files)} semantic files")
+
+    # Validate a sample of semantic masks
+    sample_size = min(5, len(semantic_files))
+    all_valid = True
+
+    for i in range(sample_size):
+        semantic_file = semantic_files[i]
+        semantic_path = os.path.join(semantic_dir, semantic_file)
+
+        is_valid, result = validate_semantic_mask(semantic_path)
+        if is_valid:
+            print(f"✅ {semantic_file}: Valid - {len(result['class_pixel_counts'])} classes found")
+        else:
+            print(f"❌ {semantic_file}: Invalid - {result}")
+            all_valid = False
+
+    return all_valid
+
+# Execute the pipeline
+create_semantic_segmentation_pipeline()
+
+# Validate the results
+validate_semantic_dataset("output/semantic_pipeline_test")
+```
+
+## Troubleshooting Common Semantic Issues
+
+### Label Assignment Issues
+- **Missing labels**: Verify that semantic schema is properly applied to objects
+- **Incorrect labels**: Check that class names match expected values
+- **No semantic output**: Ensure annotator is attached to render product
+
+### Quality Issues
+- **Inconsistent boundaries**: Check object overlaps and geometry
+- **Missing regions**: Verify objects are within camera view and clipping range
+- **Wrong class IDs**: Check semantic schema assignment and naming
+
+### Performance Issues
+- **Slow generation**: Semantic segmentation is typically fast, but complex scenes may slow it down
+- **Memory issues**: Monitor memory usage with multiple sensors
+
+## Best Practices
+
+1. **Consistent labeling**: Use consistent class names across the dataset
+2. **Hierarchical organization**: Organize classes in a logical hierarchy
+3. **Validation**: Always validate semantic mask quality and class distribution
+4. **Documentation**: Maintain class mapping files for reference
+5. **Quality assessment**: Regularly analyze semantic segmentation accuracy
+6. **Memory management**: Monitor memory usage with multiple concurrent sensors
+
+## Performance Targets
+
+For semantic segmentation generation:
+- **Basic scenes**: Maintain 30 FPS with 1920x1080 resolution
+- **Complex scenes**: Maintain 10 FPS with 1920x1080 resolution
+- **Accuracy**: Pixel-perfect semantic labeling matching object classes
+- **Multi-sensor**: Support up to 50 concurrent semantic sensors per simulation
+- **Multi-user**: Support up to 10 simultaneous student sessions
+
+## Integration with Other Pipelines
+
+### Semantic + Instance Segmentation
+Combine semantic and instance segmentation for comprehensive annotations:
+```python
+def process_semantic_instance_masks(semantic_path, instance_path):
+    """Process combined semantic and instance segmentation"""
+
+    # Load semantic mask
+    semantic_mask = cv2.imread(semantic_path, cv2.IMREAD_UNCHANGED)
+
+    # Load instance mask
+    instance_mask = cv2.imread(instance_path, cv2.IMREAD_UNCHANGED)
+
+    # Combine semantic and instance information
+    # This creates a mapping from instance ID to semantic class
+    instance_to_semantic = {}
+
+    for instance_id in np.unique(instance_mask):
+        if instance_id == 0:  # Skip background
+            continue
+
+        # Find the semantic class for this instance
+        instance_pixels = (instance_mask == instance_id)
+        semantic_values = semantic_mask[instance_pixels]
+
+        # Most common semantic value for this instance
+        unique, counts = np.unique(semantic_values, return_counts=True)
+        semantic_class = unique[np.argmax(counts)]
+
+        instance_to_semantic[int(instance_id)] = int(semantic_class)
+
+    return instance_to_semantic
+```
+
+## Next Steps
+
+After mastering semantic segmentation generation:
+1. Explore instance segmentation techniques
+2. Combine multiple annotation types
+3. Implement semantic segmentation models
+4. Optimize for specific computer vision tasks
+5. Create evaluation metrics for segmentation quality
+
+## References
+
+- [Isaac Sim Semantic Segmentation Guide](https://docs.omniverse.nvidia.com/isaacsim/latest/features/replicator.html#semantic-segmentation)
+- [Semantic Schema in USD](https://graphics.pixar.com/usd/release/api/class_px_r_usd_semantic_schema.html)
+- [Synthetic Data for Segmentation](https://nvidia-isaac-ros.github.io/released/synthetic_data/index.html)
+- [Segmentation Annotation Best Practices](https://docs.opencv.org/4.x/d2/d96/tutorial_py_table_of_contents_shape.html)
