@@ -15,16 +15,17 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://saoodahmed.github.io',
+  // This will be updated to your Vercel deployment URL
+  url: 'https://your-vercel-deployment-url.vercel.app',
   // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/robotic_humanoid_book/',
+  // For Vercel deployment, it should be '/'
+  baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'SaoodAhmed', // Usually your GitHub org/user name.
-  projectName: 'robotic_humanoid_book', // Usually your repo name.
-  deploymentBranch: 'gh-pages', // The branch to deploy to GitHub Pages
+  // Vercel deployment config
+  organizationName: 'SaoodAhmed', // Your GitHub org/user name.
+  projectName: 'robotic_humanoid_book', // Your repo name.
+  // For Vercel deployment, these GitHub Pages settings are not needed
+  // deploymentBranch: 'gh-pages', // Commented out for Vercel deployment
 
   onBrokenLinks: 'throw',
 
@@ -45,7 +46,7 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/SaoodAhmed/robotic_humanoid_book/tree/main/frontend/',
+            'https://github.com/SaoodAhmed/robotic_humanoid_book/tree/main/frontend/', // This can remain for GitHub editing
         },
         blog: false,
         theme: {

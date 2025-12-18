@@ -49,12 +49,12 @@ export default function Home() {
             <div className={styles.ctaButtons}>
               <Link
                 className="button button--primary button--lg margin-horiz--md"
-                to="/robotic_humanoid_book/docs/intro">
+                to="/docs/intro">
                 Start Learning Now
               </Link>
               <Link
                 className="button button--secondary button--lg margin-horiz--md"
-                to="/robotic_humanoid_book/docs/module-1">
+                to="/docs/module-1">
                 Explore Modules
               </Link>
             </div>

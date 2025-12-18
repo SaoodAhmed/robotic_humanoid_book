@@ -29,12 +29,12 @@ function HeroSection() {
         <div className={styles.buttons}>
           <Link
             className={clsx('button button--primary button--lg', styles.buttonBeautiful)}
-            to="/robotic_humanoid_book/docs/intro">
+            to="/docs/intro">
             Start Learning
           </Link>
           <Link
             className={clsx('button button--secondary button--lg', styles.buttonBeautiful)}
-            to="/robotic_humanoid_book/docs/module-1">
+            to="/docs/module-1">
             View Modules
           </Link>
         </div>

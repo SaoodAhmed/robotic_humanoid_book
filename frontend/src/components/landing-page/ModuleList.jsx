@@ -116,7 +116,7 @@ function ModuleList() {
               <div className={styles.moduleFooter}>
                 <Link
                   className="button button--primary button--sm"
-                  to={`/robotic_humanoid_book/docs/${module.id}`}>
+                  to={`/docs/${module.id}`}>
                   Explore Module
                 </Link>
               </div>

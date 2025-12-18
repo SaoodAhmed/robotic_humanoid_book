@@ -137,12 +137,12 @@ function CapstoneProject() {
           <div className={styles.ctaButtons}>
             <Link
               className="button button--primary button--lg"
-              to="/robotic_humanoid_book/docs/module-4">
+              to="/docs/module-4">
               Start Building
             </Link>
             <Link
               className="button button--secondary button--lg"
-              to="/robotic_humanoid_book/docs/module-4/lab-3-vla-capstone">
+              to="/docs/module-4/lab-3-vla-capstone">
               View Lab Exercise
             </Link>
           </div>
