@@ -1,52 +1,73 @@
-/* Beautiful Learning Outcomes Styles */
+/* Beautiful Learning Outcomes Styles with Distinctive Design */
 
 .learningOutcomes {
-  padding: 5rem 0;
-  background-color: #f5f7ff;
+  padding: clamp(3rem, 6vw, 5rem) 0;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+  position: relative;
+}
+
+.learningOutcomes::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(98, 0, 234, 0.03) 0%, transparent 20%),
+    radial-gradient(circle at 80% 85%, rgba(0, 200, 83, 0.03) 0%, transparent 20%);
+  z-index: 0;
 }
 
 .sectionTitle {
-  font-size: 2.5rem;
-  margin-bottom: 1.5rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
+  margin-bottom: clamp(1rem, 3vw, 1.5rem);
   color: #1a237e;
   position: relative;
   text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .sectionTitle::after {
   content: '';
   position: absolute;
-  bottom: -10px;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
+  width: 100px;
   height: 4px;
-  background: linear-gradient(to right, #1565c0, #1565c0);
+  background: linear-gradient(135deg, #00c853 0%, #6200ea 100%);
   border-radius: 2px;
+  box-shadow: 0 4px 8px rgba(98, 0, 234, 0.2);
 }
 
 .sectionDescription {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
   color: #555;
-  margin-bottom: 3rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
   text-align: center;
   line-height: 1.6;
 }
 
 .outcomesGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(280px, 30vw, 350px), 1fr));
+  gap: clamp(1.5rem, 4vw, 2rem);
+  margin-bottom: clamp(2rem, 5vw, 3rem);
 }
 
 .outcomeCard {
   background: white;
   border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  transition: all 0.3s ease;
-  border-left: 4px solid #1565c0;
+  padding: clamp(1.5rem, 3vw, 2rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   position: relative;
   overflow: hidden;
 }
@@ -58,125 +79,168 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(to right, #1565c0, #1565c0);
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.outcomeCard:hover::before {
+  transform: scaleX(1);
 }
 
 .outcomeCard:hover {
   transform: translateY(-5px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .outcomeHeader {
   display: flex;
   align-items: center;
-  margin-bottom: 1.5rem;
+  justify-content: center;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .outcomeIcon {
-  font-size: 2.5rem;
-  margin-right: 1rem;
-  flex-shrink: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
 }
 
 .outcomeCategory {
   flex-grow: 1;
+  text-align: center;
 }
 
 .categoryTag {
   display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
+  padding: clamp(0.25rem, 1.5vw, 0.5rem) clamp(0.75rem, 2.5vw, 1rem);
+  border-radius: 24px;
+  font-size: clamp(0.8rem, 2.2vw, 0.9rem);
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
 }
 
 .categoryTag.technicalSkill {
-  background-color: #e3f2fd;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
   color: #0277bd;
+  box-shadow: 0 4px 12px rgba(2, 119, 189, 0.1);
 }
 
 .categoryTag.theoreticalKnowledge {
-  background-color: #f3e5f5;
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
   color: #7b1fa2;
+  box-shadow: 0 4px 12px rgba(123, 31, 162, 0.1);
 }
 
 .categoryTag.practicalApplication {
-  background-color: #e8f5e9;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
   color: #388e3c;
+  box-shadow: 0 4px 12px rgba(56, 142, 60, 0.1);
 }
 
 .outcomeTitle {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
   color: #1a237e;
-  margin: 0 0 1rem 0;
+  margin: 0 0 clamp(0.5rem, 1.5vw, 1rem) 0;
   line-height: 1.4;
+  font-weight: 600;
 }
 
 .outcomeDescription {
   color: #666;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
   line-height: 1.6;
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  flex-grow: 1;
+  text-align: center;
 }
 
 .measurementIndicator {
   display: flex;
   align-items: center;
-  color: #1565c0;
+  justify-content: center;
+  color: #00c853;
   font-weight: 500;
+  margin-top: auto;
 }
 
 .measurableIcon {
-  font-size: 1.2rem;
-  margin-right: 0.5rem;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  margin-right: clamp(0.25rem, 1vw, 0.5rem);
 }
 
 .assessmentSection {
   text-align: center;
-  padding: 2rem;
-  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+  padding: clamp(1.5rem, 3vw, 2rem);
+  background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
   border-radius: 16px;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  border: 1px solid rgba(98, 0, 234, 0.08);
 }
 
 .assessmentTitle {
-  font-size: 1.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
   color: #1a237e;
-  margin-bottom: 1rem;
+  margin-bottom: clamp(0.5rem, 2vw, 1rem);
 }
 
 .assessmentDescription {
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
   color: #555;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(1.5rem, 4vw, 2rem);
   line-height: 1.6;
 }
 
 .assessmentGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-top: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(220px, 28vw, 250px), 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
+  margin-top: clamp(1.5rem, 4vw, 2rem);
 }
 
 .assessmentCard {
   background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  transition: all 0.3s ease;
+  border-radius: 16px;
+  padding: clamp(1.25rem, 2.5vw, 1.5rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.assessmentCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.assessmentCard:hover::before {
+  transform: scaleX(1);
 }
 
 .assessmentCard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .assessmentCardTitle {
-  font-size: 1.25rem;
+  font-size: clamp(1.1rem, 3vw, 1.25rem);
   color: #1a237e;
-  margin-bottom: 0.75rem;
+  margin-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
 }
 
 .assessmentCardBody {
@@ -191,6 +255,14 @@
   animation: fadeInUp 0.6s ease forwards;
 }
 
+.delay1 {
+  animation-delay: 0.2s;
+}
+
+.delay2 {
+  animation-delay: 0.4s;
+}
+
 @keyframes fadeInUp {
   to {
     opacity: 1;
@@ -199,51 +271,102 @@
 }
 
 /* Responsive design */
+@media (max-width: 1024px) {
+  .sectionTitle {
+    font-size: clamp(1.75rem, 5vw, 2rem);
+  }
+
+  .outcomesGrid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(250px, 35vw, 300px), 1fr));
+    gap: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .assessmentGrid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(200px, 30vw, 250px), 1fr));
+    gap: clamp(0.75rem, 2.5vw, 1rem);
+  }
+}
+
 @media (max-width: 768px) {
   .learningOutcomes {
-    padding: 3rem 0;
+    padding: clamp(2rem, 5vw, 3rem) 0;
   }
 
   .sectionTitle {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 6vw, 1.75rem);
+  }
+
+  .sectionDescription {
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
   }
 
   .outcomesGrid {
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: clamp(1rem, 3vw, 1.5rem);
   }
 
   .outcomeCard {
-    padding: 1.5rem;
+    padding: clamp(1.25rem, 2.5vw, 1.5rem);
   }
 
   .outcomeHeader {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
   .outcomeIcon {
-    margin-bottom: 1rem;
+    margin-bottom: 0;
     margin-right: 0;
   }
 
   .assessmentGrid {
     grid-template-columns: 1fr;
+    gap: clamp(0.75rem, 2.5vw, 1rem);
+  }
+
+  .assessmentCard {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .learningOutcomes {
+    padding: 2rem 0;
+  }
+
+  .sectionTitle {
+    font-size: 1.5rem;
+  }
+
+  .sectionDescription {
+    font-size: 1rem;
+  }
+
+  .outcomeCard {
+    padding: 1.25rem;
   }
 }
 
 /* Dark mode support */
 html[data-theme='dark'] .learningOutcomes {
-  background-color: #0d1117;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+}
+
+html[data-theme='dark'] .learningOutcomes::before {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(139, 92, 246, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 80% 85%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
 }
 
 html[data-theme='dark'] .outcomeCard {
-  background: #1e293b;
-  color: #e6edf3;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #e2e8f0;
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .sectionDescription {
-  color: #adbac7;
+  color: #94a3b8;
 }
 
 html[data-theme='dark'] .outcomeDescription {
@@ -251,25 +374,44 @@ html[data-theme='dark'] .outcomeDescription {
 }
 
 html[data-theme='dark'] .categoryTag.technicalSkill {
-  background-color: #1a365d;
+  background: linear-gradient(135deg, #1a365d 0%, #2d466b 100%);
   color: #80cfff;
 }
 
 html[data-theme='dark'] .categoryTag.theoreticalKnowledge {
-  background-color: #4a1d5e;
+  background: linear-gradient(135deg, #4a1d5e 0%, #622c7d 100%);
   color: #d08fe7;
 }
 
 html[data-theme='dark'] .categoryTag.practicalApplication {
-  background-color: #2d4637;
+  background: linear-gradient(135deg, #2d4637 0%, #3d5f4a 100%);
   color: #86e0a0;
 }
 
 html[data-theme='dark'] .assessmentSection {
-  background: linear-gradient(135deg, #161b22 0%, #1a2332 100%);
-  color: #e6edf3;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #e2e8f0;
+  border-color: rgba(99, 102, 241, 0.2);
 }
 
 html[data-theme='dark'] .assessmentDescription {
   color: #94a3b8;
+}
+
+html[data-theme='dark'] .assessmentCard {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #e2e8f0;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+html[data-theme='dark'] .sectionTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .outcomeTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .assessmentTitle {
+  color: #e2e8f0;
 }

@@ -123,6 +123,10 @@ const config: Config = {
               label: 'Module 3: The AI-Robot Brain (NVIDIA Isaac)',
               to: '/docs/module-3',
             },
+            {
+              label: 'Module 4: Vision-Language-Action (VLA)',
+              to: '/docs/module-4',
+            },
           ],
         },
         {
@@ -137,17 +141,54 @@ const config: Config = {
               href: 'https://gazebosim.org/',
             },
             {
+              label: 'Unity Robotics',
+              href: 'https://unity.com/solutions/robotics',
+            },
+            {
+              label: 'NVIDIA Isaac',
+              href: 'https://developer.nvidia.com/isaac-ros-gems',
+            },
+            {
               label: 'Docusaurus',
               href: 'https://docusaurus.io/',
             },
           ],
         },
         {
-          title: 'More',
+          title: 'Community',
           items: [
             {
               label: 'GitHub',
               href: 'https://github.com/SaoodAhmed/robotic_humanoid_book',
+            },
+            {
+              label: 'ROS Answers',
+              href: 'https://answers.ros.org/questions/',
+            },
+            {
+              label: 'Gazebo Community',
+              href: 'https://community.gazebosim.org/',
+            },
+            {
+              label: 'Unity Forums',
+              href: 'https://forum.unity.com/',
+            },
+          ],
+        },
+        {
+          title: 'Legal',
+          items: [
+            {
+              label: 'Privacy Policy',
+              to: '/privacy',
+            },
+            {
+              label: 'Terms of Service',
+              to: '/tos',
+            },
+            {
+              label: 'Accessibility Statement',
+              to: '/accessibility',
             },
           ],
         },

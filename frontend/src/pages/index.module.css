@@ -8,11 +8,39 @@
   text-align: center;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+  border-radius: 0 0 40px 40px;
+  margin-bottom: 3rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+.heroBanner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(98, 0, 234, 0.03) 0%, transparent 20%),
+    radial-gradient(circle at 85% 80%, rgba(0, 200, 83, 0.03) 0%, transparent 20%);
+  z-index: 0;
+}
+
+[data-theme="dark"] .heroBanner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+}
+
+[data-theme="dark"] .heroBanner::before {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
 }
 
 @media screen and (max-width: 996px) {
   .heroBanner {
     padding: 2rem;
+    border-radius: 0 0 20px 20px;
   }
 }
 
@@ -20,4 +48,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }

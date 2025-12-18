@@ -3,6 +3,31 @@
   align-items: center;
   padding: 2rem 0;
   width: 100%;
+  position: relative;
+}
+
+.features::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(98, 0, 234, 0.02) 0%, transparent 20%),
+    radial-gradient(circle at 80% 85%, rgba(0, 200, 83, 0.02) 0%, transparent 20%);
+  z-index: 0;
+}
+
+[data-theme="dark"] .features::before {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(139, 92, 246, 0.03) 0%, transparent 20%),
+    radial-gradient(circle at 80% 85%, rgba(16, 185, 129, 0.03) 0%, transparent 20%);
+}
+
+.features > .container {
+  position: relative;
+  z-index: 1;
 }
 
 .featureSvg {

@@ -1,8 +1,8 @@
-/* Beautiful Capstone Project Styles */
+/* Beautiful Capstone Project Styles with Distinctive Design */
 
 .capstoneProject {
-  padding: 5rem 0;
-  background-color: white;
+  padding: clamp(3rem, 6vw, 5rem) 0;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
   position: relative;
 }
 
@@ -12,109 +12,174 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(to right, #1565c0, #1565c0);
+  bottom: 0;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(98, 0, 234, 0.03) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(0, 200, 83, 0.03) 0%, transparent 20%);
+  z-index: 0;
 }
 
 .sectionTitle {
-  font-size: 2.5rem;
-  margin-bottom: 1.5rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
+  margin-bottom: clamp(1rem, 3vw, 1.5rem);
   color: #1a237e;
   position: relative;
   text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .sectionTitle::after {
   content: '';
   position: absolute;
-  bottom: -10px;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
+  width: 100px;
   height: 4px;
-  background: linear-gradient(to right, #1565c0, #1565c0);
+  background: linear-gradient(135deg, #00c853 0%, #6200ea 100%);
   border-radius: 2px;
+  box-shadow: 0 4px 8px rgba(98, 0, 234, 0.2);
 }
 
 .sectionDescription {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
   color: #555;
-  margin-bottom: 3rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
   text-align: center;
   line-height: 1.6;
 }
 
 .projectOverview {
-  background: linear-gradient(135deg, #f5f7ff 0%, #e6f0ff 100%);
+  background: white;
   border-radius: 16px;
-  padding: 2.5rem;
-  margin-bottom: 3rem;
+  padding: clamp(1.75rem, 4vw, 2.5rem);
+  margin-bottom: clamp(2rem, 5vw, 3rem);
   box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-  border: 1px solid #e0e7ff;
+  border: 1px solid rgba(98, 0, 234, 0.1);
   position: relative;
   overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.projectOverview::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.projectOverview:hover::before {
+  transform: scaleX(1);
+}
+
+.projectOverview:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .projectHeader {
   display: flex;
   align-items: center;
-  margin-bottom: 1.5rem;
+  justify-content: center;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .projectIcon {
-  font-size: 3rem;
-  margin-right: 1.5rem;
-  flex-shrink: 0;
+  font-size: clamp(2.25rem, 6vw, 3rem);
+  margin-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
 }
 
 .projectTitle {
-  font-size: 1.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
   color: #1a237e;
   margin: 0;
   line-height: 1.3;
+  font-weight: 700;
+  text-align: center;
 }
 
 .projectDescription {
-  font-size: 1.2rem;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
   color: #444;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
   line-height: 1.7;
 }
 
 .durationTag, .complexityTag {
   display: inline-block;
-  padding: 0.5rem 1.25rem;
-  border-radius: 25px;
-  font-size: 0.9rem;
+  padding: clamp(0.35rem, 1.5vw, 0.5rem) clamp(0.85rem, 3vw, 1.25rem);
+  border-radius: 24px;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
   font-weight: 600;
-  margin-right: 1rem;
-  margin-bottom: 1rem;
+  margin-right: clamp(0.5rem, 2vw, 1rem);
+  margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+  letter-spacing: 0.05em;
 }
 
 .durationTag {
-  background-color: #e3f2fd;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
   color: #0277bd;
+  box-shadow: 0 4px 12px rgba(2, 119, 189, 0.1);
 }
 
 .complexityTag {
-  background-color: #f3e5f5;
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
   color: #7b1fa2;
+  box-shadow: 0 4px 12px rgba(123, 31, 162, 0.1);
 }
 
 .featureSection {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+  border-radius: 16px;
+  padding: clamp(1.5rem, 3vw, 2rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.featureSection::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.featureSection:hover::before {
+  transform: scaleX(1);
+}
+
+.featureSection:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .featureTitle {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
   color: #1a237e;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
+  padding-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
+  border-bottom: 2px solid rgba(98, 0, 234, 0.1);
+  font-weight: 600;
 }
 
 .objectivesList, .deliverablesList, .integrationList {
@@ -123,7 +188,7 @@
 }
 
 .objectiveItem, .deliverableItem, .integrationItem {
-  padding: 0.75rem 0;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) 0;
   border-bottom: 1px solid #eee;
   display: flex;
   align-items: flex-start;
@@ -134,54 +199,107 @@
 }
 
 .bullet {
-  color: #1565c0;
+  color: #00c853;
   font-weight: bold;
-  margin-right: 0.75rem;
+  margin-right: clamp(0.5rem, 1.5vw, 0.75rem);
   flex-shrink: 0;
 }
 
 .evaluationSection {
-  margin: 3rem 0;
-  padding: 2.5rem;
-  background: linear-gradient(135deg, #e3f2fd 0%, #e1f5fe 100%);
+  margin: clamp(2rem, 5vw, 3rem) 0;
+  padding: clamp(1.75rem, 4vw, 2.5rem);
+  background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  border: 1px solid rgba(98, 0, 234, 0.08);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.evaluationSection::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.evaluationSection:hover::before {
+  transform: scaleX(1);
+}
+
+.evaluationSection:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .evaluationTitle {
-  font-size: 1.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
   color: #0d47a1;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(1.5rem, 4vw, 2rem);
   text-align: center;
 }
 
 .criteriaGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(250px, 32vw, 300px), 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
 }
 
 .criterionCard {
   background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: 16px;
+  padding: clamp(1.25rem, 2.5vw, 1.5rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
   display: flex;
   align-items: flex-start;
+  flex-direction: column;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.criterionCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.criterionCard:hover::before {
+  transform: scaleX(1);
+}
+
+.criterionCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .criterionNumber {
   background: #1565c0;
   color: white;
-  width: 30px;
-  height: 30px;
+  width: clamp(25px, 6vw, 30px);
+  height: clamp(25px, 6vw, 30px);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.9rem;
-  margin-right: 1rem;
+  font-size: clamp(0.75rem, 2vw, 0.9rem);
+  margin-right: clamp(0.5rem, 2vw, 1rem);
   flex-shrink: 0;
 }
 
@@ -193,22 +311,48 @@
 
 .callToAction {
   text-align: center;
-  padding: 3rem 2rem;
+  padding: clamp(2rem, 5vw, 3rem) clamp(1rem, 3vw, 2rem);
   background: linear-gradient(135deg, #1a237e 0%, #4a148c 100%);
   border-radius: 16px;
   color: white;
-  margin-top: 2rem;
+  margin-top: clamp(1.5rem, 4vw, 2rem);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.callToAction::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.callToAction:hover::before {
+  transform: scaleX(1);
+}
+
+.callToAction:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .ctaTitle {
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
+  font-size: clamp(1.75rem, 5vw, 2rem);
+  margin-bottom: clamp(1rem, 3vw, 1.5rem);
   color: white;
+  font-weight: 700;
 }
 
 .ctaDescription {
-  font-size: 1.2rem;
-  margin-bottom: 2rem;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  margin-bottom: clamp(1.5rem, 4vw, 2rem);
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.6;
   max-width: 800px;
@@ -219,7 +363,7 @@
 .ctaButtons {
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
+  gap: clamp(1rem, 3vw, 1.5rem);
   flex-wrap: wrap;
 }
 
@@ -254,13 +398,32 @@
 }
 
 /* Responsive design */
+@media (max-width: 1024px) {
+  .sectionTitle {
+    font-size: clamp(1.75rem, 5vw, 2rem);
+  }
+
+  .projectOverview {
+    padding: clamp(1.25rem, 3vw, 1.75rem);
+  }
+
+  .criteriaGrid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(220px, 35vw, 280px), 1fr));
+    gap: clamp(0.75rem, 2.5vw, 1rem);
+  }
+}
+
 @media (max-width: 768px) {
   .capstoneProject {
-    padding: 3rem 0;
+    padding: clamp(2rem, 5vw, 3rem) 0;
   }
 
   .sectionTitle {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 6vw, 1.75rem);
+  }
+
+  .sectionDescription {
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
   }
 
   .projectOverview {
@@ -270,36 +433,67 @@
   .projectHeader {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
   .projectIcon {
-    margin-bottom: 1rem;
+    margin-bottom: 0;
     margin-right: 0;
   }
 
   .ctaButtons {
     flex-direction: column;
     align-items: center;
+    gap: clamp(0.75rem, 2vw, 1rem);
   }
 
   .criteriaGrid {
     grid-template-columns: 1fr;
+    gap: clamp(0.75rem, 2.5vw, 1rem);
+  }
+
+  .featureSection {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .capstoneProject {
+    padding: 2rem 0;
+  }
+
+  .sectionTitle {
+    font-size: 1.5rem;
+  }
+
+  .sectionDescription {
+    font-size: 1rem;
+  }
+
+  .projectOverview {
+    padding: 1.25rem;
   }
 }
 
 /* Dark mode support */
 html[data-theme='dark'] .capstoneProject {
-  background-color: #0d1117;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+}
+
+html[data-theme='dark'] .capstoneProject::before {
+  background:
+    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
 }
 
 html[data-theme='dark'] .projectOverview {
-  background: linear-gradient(135deg, #1a2332 0%, #16253c 100%);
-  border-color: #30363d;
-  color: #e6edf3;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-color: rgba(139, 92, 246, 0.15);
+  color: #e2e8f0;
 }
 
 html[data-theme='dark'] .sectionDescription {
-  color: #adbac7;
+  color: #94a3b8;
 }
 
 html[data-theme='dark'] .projectDescription {
@@ -307,13 +501,15 @@ html[data-theme='dark'] .projectDescription {
 }
 
 html[data-theme='dark'] .featureSection {
-  background: #1e293b;
-  color: #e6edf3;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #e2e8f0;
+  border-color: rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .criterionCard {
-  background: #2d3748;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   color: #e2e8f0;
+  border-color: rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .criterionText {
@@ -323,5 +519,35 @@ html[data-theme='dark'] .criterionText {
 html[data-theme='dark'] .objectiveItem,
 html[data-theme='dark'] .deliverableItem,
 html[data-theme='dark'] .integrationItem {
-  border-color: #4a5568;
+  border-color: #475569;
+}
+
+html[data-theme='dark'] .evaluationSection {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .sectionTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .projectTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .featureTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .evaluationTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .ctaTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .ctaDescription {
+  color: rgba(226, 232, 240, 0.9);
 }

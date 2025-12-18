@@ -6,117 +6,470 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+    --ifm-color-primary: #6200ea;
+    --ifm-color-primary-dark: #5600d4;
+    --ifm-color-primary-darker: #4d00c0;
+    --ifm-color-primary-darkest: #3d0099;
+    --ifm-color-primary-light: #781ce0;
+    --ifm-color-primary-lighter: #8e35e6;
+    --ifm-color-primary-lightest: #a34fed;
+    --ifm-color-secondary: #00c853;
+    --ifm-color-secondary-dark: #00b249;
+    --ifm-color-secondary-darker: #00a042;
+    --ifm-color-secondary-darkest: #007a33;
+    --ifm-color-secondary-light: #1ad863;
+    --ifm-color-secondary-lighter: #33dd73;
+    --ifm-color-secondary-lightest: #4de283;
+    --ifm-color-accent: #1a237e;
+    --ifm-color-accent-dark: #151d67;
+    --ifm-color-accent-darker: #121957;
+    --ifm-color-accent-darkest: #0d1240;
+    --ifm-color-accent-light: #2a3491;
+    --ifm-color-accent-lighter: #3a44a4;
+    --ifm-color-accent-lightest: #4a55b7;
+    --ifm-code-font-size: 95%;
+    --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+    --ifm-global-radius: 16px;
+    --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+[data-theme="dark"] {
+    --ifm-color-primary: #9d4edd;
+    --ifm-color-primary-dark: #8a3dd0;
+    --ifm-color-primary-darker: #7a34c1;
+    --ifm-color-primary-darkest: #6028a0;
+    --ifm-color-primary-light: #b062e5;
+    --ifm-color-primary-lighter: #c27bec;
+    --ifm-color-primary-lightest: #d595f3;
+    --ifm-color-secondary: #69f0ae;
+    --ifm-color-secondary-dark: #53d894;
+    --ifm-color-secondary-darker: #44c27f;
+    --ifm-color-secondary-darkest: #32a066;
+    --ifm-color-secondary-light: #7ff4b8;
+    --ifm-color-secondary-lighter: #94f7c2;
+    --ifm-color-secondary-lightest: #a9f9cc;
+    --ifm-color-accent: #e2e8f0;
+    --ifm-color-accent-dark: #cbd5e1;
+    --ifm-color-accent-darker: #aab3c3;
+    --ifm-color-accent-darkest: #7d87a3;
+    --ifm-color-accent-light: #f1f5f9;
+    --ifm-color-accent-lighter: #f8fafc;
+    --ifm-color-accent-lightest: #ffffff;
+    --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Custom styling for hero banners */
+.hero--primary {
+    background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero--primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(98, 0, 234, 0.03) 0%, transparent 20%),
+        radial-gradient(circle at 85% 80%, rgba(0, 200, 83, 0.03) 0%, transparent 20%);
+    z-index: 0;
+}
+
+[data-theme="dark"] .hero--primary {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+}
+
+[data-theme="dark"] .hero--primary::before {
+    background:
+        radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
+}
+
+.hero__title {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    position: relative;
+    z-index: 1;
+}
+
+.hero__subtitle {
+    position: relative;
+    z-index: 1;
+}
+
+.button--secondary {
+    background: linear-gradient(135deg, #00c853 0%, #6200ea 100%) !important;
+    border: none !important;
+    color: white !important;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    box-shadow: 0 4px 12px rgba(98, 0, 234, 0.3) !important;
+}
+
+.button--secondary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #ffffff, #ffffff);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+    z-index: 1;
+}
+
+.button--secondary:hover::before {
+    transform: scaleX(1);
+}
+
+.button--secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(98, 0, 234, 0.4) !important;
+}
+
+.button--secondary span {
+    position: relative;
+    z-index: 2;
 }
 
 /* Custom styling for simulation diagrams and code examples */
 .simulation-diagram-container {
-  margin: 2rem 0;
-  padding: 1.5rem;
-  background-color: var(--ifm-color-emphasis-100);
-  border-radius: var(--ifm-global-radius);
-  border: 1px solid var(--ifm-color-emphasis-300);
-  text-align: center;
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(98, 0, 234, 0.1);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.simulation-diagram-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00c853, #6200ea);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.simulation-diagram-container:hover::before {
+    transform: scaleX(1);
+}
+
+.simulation-diagram-container:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .simulation-diagram-container {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    color: #e2e8f0;
 }
 
 .simulation-diagram-title {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: var(--ifm-color-primary);
-  margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--ifm-color-accent);
+    margin-bottom: 0.5rem;
 }
 
 .simulation-diagram-description {
-  font-size: 0.9rem;
-  color: var(--ifm-color-secondary-darkest);
-  margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--ifm-color-emphasis-700);
+    margin-bottom: 1rem;
 }
 
 .simulation-code-block {
-  margin: 2rem 0;
-  border-radius: var(--ifm-global-radius);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin: 2rem 0;
+    border-radius: var(--ifm-global-radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(98, 0, 234, 0.1);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.simulation-code-block::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00c853, #6200ea);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.simulation-code-block:hover::before {
+    transform: scaleX(1);
+}
+
+.simulation-code-block:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .simulation-code-block {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    color: #e2e8f0;
 }
 
 .simulation-code-title {
-  font-size: 1.1rem;
-  font-weight: bold;
-  color: var(--ifm-color-primary);
-  margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--ifm-color-accent);
+    margin-bottom: 0.25rem;
 }
 
 .simulation-code-description {
-  font-size: 0.9rem;
-  color: var(--ifm-color-secondary-darkest);
-  margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--ifm-color-emphasis-700);
+    margin-bottom: 0.5rem;
 }
 
 /* Specific styling for Gazebo and Unity simulation content */
 .gazebo-simulation-content {
-  border-left: 4px solid #3498db;
-  padding-left: 1rem;
-  margin: 1.5rem 0;
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.gazebo-simulation-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #3498db, #2980b9);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.gazebo-simulation-content:hover::before {
+    transform: scaleX(1);
+}
+
+.gazebo-simulation-content:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .gazebo-simulation-content {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+    color: #e2e8f0;
 }
 
 .unity-visualization-content {
-  border-left: 4px solid #000000;
-  padding-left: 1rem;
-  margin: 1.5rem 0;
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.unity-visualization-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #000000, #333333);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.unity-visualization-content:hover::before {
+    transform: scaleX(1);
+}
+
+.unity-visualization-content:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .unity-visualization-content {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
 }
 
 .sensor-simulation-content {
-  border-left: 4px solid #e74c3c;
-  padding-left: 1rem;
-  margin: 1.5rem 0;
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(231, 76, 60, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sensor-simulation-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.sensor-simulation-content:hover::before {
+    transform: scaleX(1);
+}
+
+.sensor-simulation-content:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .sensor-simulation-content {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    color: #e2e8f0;
 }
 
 .physics-simulation-content {
-  border-left: 4px solid #2ecc71;
-  padding-left: 1rem;
-  margin: 1.5rem 0;
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(46, 204, 113, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.physics-simulation-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.physics-simulation-content:hover::before {
+    transform: scaleX(1);
+}
+
+.physics-simulation-content:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .physics-simulation-content {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    color: #e2e8f0;
+}
+
+/* Consistent card styling for all content */
+.card {
+    background: white;
+    border-radius: var(--ifm-global-radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid rgba(98, 0, 234, 0.1);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #00c853, #6200ea);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+}
+
+.card:hover::before {
+    transform: scaleX(1);
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+[data-theme="dark"] .card {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    color: #e2e8f0;
 }
 
 /* Responsive adjustments for simulation content */
 @media (max-width: 996px) {
-  .simulation-diagram-container {
-    padding: 1rem;
-  }
+    .simulation-diagram-container {
+        padding: 1rem;
+    }
 
-  .simulation-diagram-title {
-    font-size: 1rem;
-  }
+    .simulation-diagram-title {
+        font-size: 1rem;
+    }
 
-  .simulation-diagram-description {
-    font-size: 0.85rem;
-  }
+    .simulation-diagram-description {
+        font-size: 0.85rem;
+    }
 
-  .simulation-code-title {
-    font-size: 1rem;
-  }
+    .simulation-code-title {
+        font-size: 1rem;
+    }
 
-  .simulation-code-description {
-    font-size: 0.85rem;
-  }
+    .simulation-code-description {
+        font-size: 0.85rem;
+    }
+
+    .hero--primary {
+        padding: 2rem 0;
+    }
 }
 
 /* Accessibility enhancements */
@@ -127,73 +480,89 @@ input:focus,
 select:focus,
 textarea:focus,
 [tabindex]:focus {
-  outline: 2px solid var(--ifm-color-primary);
-  outline-offset: 2px;
-  border-radius: 2px;
+    outline: 2px solid var(--ifm-color-primary);
+    outline-offset: 2px;
+    border-radius: var(--ifm-global-radius);
 }
 
 /* Ensure sufficient color contrast */
 .simulation-diagram-title,
 .simulation-code-title {
-  color: var(--ifm-color-primary-dark);
+    color: var(--ifm-color-accent);
 }
 
 /* Skip link for screen readers */
 .skip-nav {
-  position: absolute;
-  top: -40px;
-  left: 6px;
-  background: var(--ifm-color-primary);
-  color: white;
-  padding: 8px;
-  text-decoration: none;
-  border-radius: 0 0 4px 4px;
-  z-index: 1000;
-  transition: top 0.3s ease;
+    position: absolute;
+    top: -40px;
+    left: 6px;
+    background: var(--ifm-color-primary);
+    color: white;
+    padding: 8px;
+    text-decoration: none;
+    border-radius: 0 0 var(--ifm-global-radius) var(--ifm-global-radius);
+    z-index: 1000;
+    transition: top 0.3s ease;
 }
 
 .skip-nav:focus {
-  top: 0;
+    top: 0;
 }
 
 /* Screen reader only content */
 .screen-reader-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
-  :root {
-    --ifm-color-primary: #0066cc;
-    --ifm-color-primary-dark: #0052a3;
-    --ifm-color-primary-darker: #004d99;
-    --ifm-color-primary-darkest: #003d7a;
-    --ifm-color-primary-light: #3385e6;
-    --ifm-color-primary-lighter: #66a3ee;
-    --ifm-color-primary-lightest: #99c2f5;
-  }
+    :root {
+        --ifm-color-primary: #0066cc;
+        --ifm-color-primary-dark: #0052a3;
+        --ifm-color-primary-darker: #004d99;
+        --ifm-color-primary-darkest: #003d7a;
+        --ifm-color-primary-light: #3385e6;
+        --ifm-color-primary-lighter: #66a3ee;
+        --ifm-color-primary-lightest: #99c2f5;
+    }
 
-  .simulation-diagram-container,
-  .simulation-code-block,
-  .simulationExercise,
-  .simulationConcept {
-    border: 2px solid var(--ifm-color-primary);
-  }
+    .simulation-diagram-container,
+    .simulation-code-block,
+    .simulationExercise,
+    .simulationConcept,
+    .card,
+    .gazebo-simulation-content,
+    .unity-visualization-content,
+    .sensor-simulation-content,
+    .physics-simulation-content {
+        border: 2px solid var(--ifm-color-primary);
+    }
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .simulation-diagram-container,
+    .simulation-code-block,
+    .card,
+    .gazebo-simulation-content,
+    .unity-visualization-content,
+    .sensor-simulation-content,
+    .physics-simulation-content {
+        transform: none !important;
+        transition: none !important;
+    }
 }

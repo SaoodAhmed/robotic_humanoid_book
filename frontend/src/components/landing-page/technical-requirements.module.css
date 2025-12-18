@@ -1,34 +1,51 @@
-/* Beautiful Technical Requirements Styles */
+/* Beautiful Technical Requirements Styles with Distinctive Design */
 
 .techRequirements {
-  padding: 5rem 0;
-  background-color: #f9f9ff;
+  padding: clamp(3rem, 6vw, 5rem) 0;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+  position: relative;
+}
+
+.techRequirements::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 15% 25%, rgba(98, 0, 234, 0.03) 0%, transparent 20%),
+    radial-gradient(circle at 85% 75%, rgba(0, 200, 83, 0.03) 0%, transparent 20%);
+  z-index: 0;
 }
 
 .sectionTitle {
-  font-size: 2.5rem;
-  margin-bottom: 1.5rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
+  margin-bottom: clamp(1rem, 3vw, 1.5rem);
   color: #1a237e;
   position: relative;
   text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .sectionTitle::after {
   content: '';
   position: absolute;
-  bottom: -10px;
+  bottom: -12px;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
+  width: 100px;
   height: 4px;
-  background: linear-gradient(to right, #1565c0, #1565c0);
+  background: linear-gradient(135deg, #00c853 0%, #6200ea 100%);
   border-radius: 2px;
+  box-shadow: 0 4px 8px rgba(98, 0, 234, 0.2);
 }
 
 .sectionDescription {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
   color: #555;
-  margin-bottom: 3rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
   text-align: center;
   line-height: 1.6;
 }
@@ -36,22 +53,50 @@
 .requirementCategory {
   background: white;
   border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-  margin-bottom: 2rem;
+  padding: clamp(1.5rem, 3vw, 2rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  margin-bottom: clamp(1.5rem, 4vw, 2rem);
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.requirementCategory::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.requirementCategory:hover::before {
+  transform: scaleX(1);
+}
+
+.requirementCategory:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .categoryIcon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
+  margin-bottom: clamp(0.75rem, 2vw, 1rem);
   text-align: center;
 }
 
 .categoryTitle {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
   color: #1a237e;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
   text-align: center;
 }
 
@@ -61,7 +106,7 @@
 }
 
 .requirementItem {
-  padding: 1.25rem 0;
+  padding: clamp(0.75rem, 2vw, 1.25rem) 0;
   border-bottom: 1px solid #eee;
 }
 
@@ -72,8 +117,8 @@
 .reqName {
   font-weight: 600;
   color: #1a237e;
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
+  margin-bottom: clamp(0.25rem, 1vw, 0.5rem);
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
 }
 
 .reqSpecs {
@@ -81,8 +126,8 @@
 }
 
 .minSpec, .recSpec {
-  padding: 0.25rem 0;
-  font-size: 0.95rem;
+  padding: clamp(0.15rem, 0.5vw, 0.25rem) 0;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
 }
 
 .minSpec {
@@ -90,59 +135,110 @@
 }
 
 .recSpec {
-  color: #1565c0;
+  color: #6200ea;
 }
 
 .reqJustification {
   color: #666;
   font-style: italic;
-  font-size: 0.95rem;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
   line-height: 1.5;
 }
 
 .installationGuide {
-  background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%);
+  background: white;
   border-radius: 16px;
-  padding: 3rem;
-  margin-top: 3rem;
+  padding: clamp(2rem, 5vw, 3rem);
+  margin-top: clamp(2rem, 5vw, 3rem);
   box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-  border-left: 4px solid #1565c0;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.installationGuide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.installationGuide:hover::before {
+  transform: scaleX(1);
+}
+
+.installationGuide:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .installationTitle {
-  font-size: 1.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
   color: #1a237e;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(1.5rem, 4vw, 2rem);
   text-align: center;
 }
 
 .installationSteps {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: clamp(1rem, 3vw, 1.5rem);
 }
 
 .installStep {
   display: flex;
   align-items: flex-start;
   background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-radius: 16px;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.installStep::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.installStep:hover::before {
+  transform: scaleX(1);
+}
+
+.installStep:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .stepNumber {
-  background: linear-gradient(135deg, #1565c0, #1565c0);
+  background: linear-gradient(135deg, #00c853, #6200ea);
   color: white;
-  width: 36px;
-  height: 36px;
+  width: clamp(30px, 7vw, 36px);
+  height: clamp(30px, 7vw, 36px);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 1.1rem;
-  margin-right: 1.5rem;
+  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+  margin-right: clamp(1rem, 3vw, 1.5rem);
   flex-shrink: 0;
 }
 
@@ -151,9 +247,9 @@
 }
 
 .stepTitle {
-  font-size: 1.25rem;
+  font-size: clamp(1.1rem, 3vw, 1.25rem);
   color: #1a237e;
-  margin-bottom: 0.5rem;
+  margin-bottom: clamp(0.25rem, 1vw, 0.5rem);
 }
 
 .stepDescription {
@@ -163,18 +259,44 @@
 }
 
 .compatibilityMatrix {
-  margin-top: 3rem;
+  margin-top: clamp(2rem, 5vw, 3rem);
   background: white;
   border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  padding: clamp(1.5rem, 3vw, 2rem);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
   overflow-x: auto;
+  border: 1px solid rgba(98, 0, 234, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.compatibilityMatrix::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00c853, #6200ea);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s ease;
+}
+
+.compatibilityMatrix:hover::before {
+  transform: scaleX(1);
+}
+
+.compatibilityMatrix:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
 }
 
 .matrixTitle {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
   color: #1a237e;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
   text-align: center;
 }
 
@@ -185,7 +307,7 @@
 }
 
 .compatibilityTable th {
-  background-color: #1565c0;
+  background-color: #6200ea;
   color: white;
   padding: 1rem;
   text-align: left;
@@ -197,11 +319,11 @@
 }
 
 .compatibilityTable tr:nth-child(even) {
-  background-color: #f9f9ff;
+  background-color: #f5f7ff;
 }
 
 .compatibilityTable tr:hover {
-  background-color: #f0f4ff;
+  background-color: #e6f0ff;
 }
 
 /* Animation classes */
@@ -251,17 +373,35 @@
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
-  .techRequirements {
-    padding: 3rem 0;
-  }
-
+@media (max-width: 1024px) {
   .sectionTitle {
-    font-size: 2rem;
+    font-size: clamp(1.75rem, 5vw, 2rem);
   }
 
   .requirementCategory {
-    margin-bottom: 1.5rem;
+    padding: clamp(1.25rem, 2.5vw, 1.5rem);
+  }
+
+  .installationGuide {
+    padding: clamp(1.5rem, 3vw, 2rem);
+  }
+}
+
+@media (max-width: 768px) {
+  .techRequirements {
+    padding: clamp(2rem, 5vw, 3rem) 0;
+  }
+
+  .sectionTitle {
+    font-size: clamp(1.5rem, 6vw, 1.75rem);
+  }
+
+  .sectionDescription {
+    font-size: clamp(0.9rem, 2.5vw, 1rem);
+  }
+
+  .requirementCategory {
+    margin-bottom: clamp(1rem, 3vw, 1.5rem);
     padding: 1.5rem;
   }
 
@@ -271,40 +411,65 @@
 
   .installStep {
     flex-direction: column;
+    gap: 0.75rem;
   }
 
   .stepNumber {
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     margin-right: 0;
   }
 
   .compatibilityTable {
-    font-size: 0.8rem;
+    font-size: clamp(0.75rem, 2vw, 0.8rem);
   }
 
   .compatibilityTable th,
   .compatibilityTable td {
-    padding: 0.75rem 0.5rem;
+    padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.25rem, 1vw, 0.5rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .techRequirements {
+    padding: 2rem 0;
+  }
+
+  .sectionTitle {
+    font-size: 1.5rem;
+  }
+
+  .sectionDescription {
+    font-size: 1rem;
+  }
+
+  .requirementCategory {
+    padding: 1.25rem;
   }
 }
 
 /* Dark mode support */
 html[data-theme='dark'] .techRequirements {
-  background-color: #0d1117;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+}
+
+html[data-theme='dark'] .techRequirements::before {
+  background:
+    radial-gradient(circle at 15% 25%, rgba(139, 92, 246, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 85% 75%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
 }
 
 html[data-theme='dark'] .requirementCategory {
-  background: #1e293b;
-  color: #e6edf3;
-  border-color: #30363d;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #e2e8f0;
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .sectionDescription {
-  color: #adbac7;
+  color: #94a3b8;
 }
 
 html[data-theme='dark'] .reqName {
-  color: #e6edf3;
+  color: #e2e8f0;
 }
 
 html[data-theme='dark'] .reqJustification {
@@ -312,31 +477,60 @@ html[data-theme='dark'] .reqJustification {
 }
 
 html[data-theme='dark'] .installationGuide {
-  background: linear-gradient(135deg, #161b22 0%, #1a2332 100%);
-  color: #e6edf3;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #e2e8f0;
+  border-color: rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .installStep {
-  background: #2d3748;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   color: #e2e8f0;
+  border-color: rgba(139, 92, 246, 0.15);
 }
 
 html[data-theme='dark'] .stepTitle {
-  color: #e6edf3;
+  color: #e2e8f0;
 }
 
 html[data-theme='dark'] .stepDescription {
   color: #cbd5e1;
 }
 
+html[data-theme='dark'] .compatibilityMatrix {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-color: rgba(139, 92, 246, 0.15);
+  color: #e2e8f0;
+}
+
 html[data-theme='dark'] .compatibilityTable tr:nth-child(even) {
-  background-color: #1a2332;
+  background-color: #334155;
 }
 
 html[data-theme='dark'] .compatibilityTable tr:hover {
-  background-color: #2d3748;
+  background-color: #475569;
 }
 
 html[data-theme='dark'] .compatibilityTable th {
-  background-color: #1a237e;
+  background-color: #4a148c;
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .compatibilityTable td {
+  border-color: #475569;
+}
+
+html[data-theme='dark'] .sectionTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .categoryTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .installationTitle {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .matrixTitle {
+  color: #e2e8f0;
 }
