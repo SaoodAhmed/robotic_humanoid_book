@@ -16,7 +16,7 @@ const config: Config = {
 
   // Set the production url of your site here
   // This will be updated to your Vercel deployment URL
-  url: 'https://your-vercel-deployment-url.vercel.app',
+  url: 'https://robotic-humanoid-book.vercel.app',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For Vercel deployment, it should be '/'
   baseUrl: '/',
